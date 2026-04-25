@@ -174,7 +174,7 @@ function updatePaymentDetails() {
     }
 }
 
-// File upload handlers - FIXED with null checks
+// File upload handlers
 const torFileInput = document.getElementById('torFile');
 if (torFileInput) {
     torFileInput.addEventListener('change', function(e) {
@@ -221,70 +221,108 @@ function fileToBase64(file) {
     });
 }
 
-// Auth state listener - FIXED to properly show enrollment section
+// Function to show enrollment section - FIXED
+function showEnrollmentSection() {
+    console.log("Showing enrollment section");
+    
+    // Hide auth section
+    const authSection = document.getElementById('authSection');
+    if (authSection) {
+        authSection.style.display = 'none';
+    }
+    
+    // Show enrollment section
+    const enrollmentSection = document.getElementById('enrollmentSection');
+    if (enrollmentSection) {
+        enrollmentSection.style.display = 'block';
+    }
+    
+    // Show logout button
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.style.display = 'block';
+    }
+    
+    // Show enrolled list
+    const enrolledList = document.querySelector('.enrolled-list');
+    if (enrolledList) {
+        enrolledList.classList.add('active');
+        enrolledList.style.display = 'block';
+    }
+    
+    // Hide thank you section if visible
+    const thankYouSection = document.getElementById('thankYouSection');
+    if (thankYouSection) {
+        thankYouSection.style.display = 'none';
+    }
+}
+
+// Function to show auth section
+function showAuthSection() {
+    console.log("Showing auth section");
+    
+    // Show auth section
+    const authSection = document.getElementById('authSection');
+    if (authSection) {
+        authSection.style.display = 'block';
+    }
+    
+    // Hide enrollment section
+    const enrollmentSection = document.getElementById('enrollmentSection');
+    if (enrollmentSection) {
+        enrollmentSection.style.display = 'none';
+    }
+    
+    // Hide thank you section
+    const thankYouSection = document.getElementById('thankYouSection');
+    if (thankYouSection) {
+        thankYouSection.style.display = 'none';
+    }
+    
+    // Hide logout button
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.style.display = 'none';
+    }
+}
+
+// Auth state listener - COMPLETELY FIXED
 auth.onAuthStateChanged(async (user) => {
-    console.log("Auth state changed:", user ? "Logged in" : "Logged out");
+    console.log("Auth state changed:", user ? "User is logged in: " + user.email : "No user logged in");
     
     if (user) {
         currentUser = user;
         
-        // Hide auth section
-        const authSection = document.getElementById('authSection');
-        if (authSection) authSection.style.display = 'none';
-        
-        // Show enrollment section
-        const enrollmentSection = document.getElementById('enrollmentSection');
-        if (enrollmentSection) enrollmentSection.style.display = 'block';
-        
-        // Show logout button
-        const logoutBtn = document.getElementById('logoutBtn');
-        if (logoutBtn) logoutBtn.style.display = 'block';
-        
-        // Show enrolled list
-        const enrolledList = document.querySelector('.enrolled-list');
-        if (enrolledList) enrolledList.classList.add('active');
+        // Show enrollment section immediately
+        showEnrollmentSection();
         
         // Load students
         loadStudents();
+        
+        // Initialize form event listeners
+        initializeFormListeners();
         
         // Check if user already submitted application
         try {
             const existingApp = await applicationsRef.orderByChild('userId').equalTo(user.uid).once('value');
             if (existingApp.exists()) {
+                console.log("User already has application");
                 const thankYouSection = document.getElementById('thankYouSection');
-                const enrollmentSectionElem = document.getElementById('enrollmentSection');
+                const enrollmentSection = document.getElementById('enrollmentSection');
                 if (thankYouSection) thankYouSection.style.display = 'block';
-                if (enrollmentSectionElem) enrollmentSectionElem.style.display = 'none';
+                if (enrollmentSection) enrollmentSection.style.display = 'none';
             }
         } catch (error) {
             console.error("Error checking existing application:", error);
         }
         
-        // Initialize form event listeners after user is logged in
-        initializeFormListeners();
-        
     } else {
         currentUser = null;
-        
-        // Show auth section
-        const authSection = document.getElementById('authSection');
-        if (authSection) authSection.style.display = 'block';
-        
-        // Hide enrollment section
-        const enrollmentSection = document.getElementById('enrollmentSection');
-        if (enrollmentSection) enrollmentSection.style.display = 'none';
-        
-        // Hide thank you section
-        const thankYouSection = document.getElementById('thankYouSection');
-        if (thankYouSection) thankYouSection.style.display = 'none';
-        
-        // Hide logout button
-        const logoutBtn = document.getElementById('logoutBtn');
-        if (logoutBtn) logoutBtn.style.display = 'none';
+        showAuthSection();
     }
 });
 
-// Initialize form listeners - FIXED to ensure they work after login
+// Initialize form listeners
 function initializeFormListeners() {
     console.log("Initializing form listeners");
     
@@ -312,7 +350,7 @@ function handleYearLevelChange() {
     loadSubjects();
 }
 
-// Login form - FIXED
+// Login form
 const loginForm = document.getElementById('loginForm');
 if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
@@ -322,19 +360,15 @@ if (loginForm) {
         
         try {
             await auth.signInWithEmailAndPassword(email, password);
-            showLoginMessage('Login successful! Redirecting...', 'success');
+            showLoginMessage('Login successful!', 'success');
             document.getElementById('loginForm').reset();
-            // Force reload to show enrollment section
-            setTimeout(() => {
-                // Auth state change will handle UI
-            }, 500);
         } catch (error) {
             showLoginMessage(error.message, 'error');
         }
     });
 }
 
-// Register form - FIXED to auto-login after registration
+// Register form - FIXED to show enrollment after registration
 const registerForm = document.getElementById('registerForm');
 if (registerForm) {
     registerForm.addEventListener('submit', async (e) => {
@@ -350,6 +384,8 @@ if (registerForm) {
         }
         
         try {
+            showRegisterMessage('Creating account...', 'success');
+            
             // Create user
             const userCredential = await auth.createUserWithEmailAndPassword(email, password);
             
@@ -360,10 +396,15 @@ if (registerForm) {
                 createdAt: Date.now()
             });
             
-            showRegisterMessage('Registration successful! You are now logged in.', 'success');
+            showRegisterMessage('Registration successful! Redirecting to enrollment form...', 'success');
             document.getElementById('registerForm').reset();
             
-            // Auth state change will automatically show enrollment section
+            // Force show enrollment section after successful registration
+            setTimeout(() => {
+                if (auth.currentUser) {
+                    showEnrollmentSection();
+                }
+            }, 1000);
             
         } catch (error) {
             console.error("Registration error:", error);
@@ -377,6 +418,7 @@ const logoutBtn = document.getElementById('logoutBtn');
 if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
         await auth.signOut();
+        showAuthSection();
         location.reload();
     });
 }
@@ -580,7 +622,7 @@ function showRegisterMessage(msg, type) {
 
 // Initialize UI elements on page load
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("DOM fully loaded");
+    console.log("DOM fully loaded - initializing UI");
     updateYearLevels();
     updateStrandCourse();
     
@@ -592,5 +634,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (paymentMethodInput) {
             paymentMethodInput.value = firstPaymentMethod.dataset.method;
         }
+    }
+    
+    // Check initial auth state
+    if (auth.currentUser) {
+        console.log("User already logged in on page load");
+        showEnrollmentSection();
+        loadStudents();
+        initializeFormListeners();
+    } else {
+        console.log("No user logged in on page load");
+        showAuthSection();
     }
 });

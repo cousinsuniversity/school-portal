@@ -77,17 +77,17 @@ const STRANDS = {
     College: ["BSIT", "BSCS", "BSBA", "BSEd", "BSN", "BSA"]
 };
 
-// Year level options
 function updateYearLevels() {
-    const level = document.getElementById('educationLevel').value;
+    const level = document.getElementById('educationLevel');
+    if (!level) return;
     const yearSelect = document.getElementById('yearLevel');
     if (!yearSelect) return;
     yearSelect.innerHTML = '<option value="">Select Year</option>';
     
-    if (level === 'SHS') {
+    if (level.value === 'SHS') {
         yearSelect.innerHTML += '<option value="11">Grade 11</option>';
         yearSelect.innerHTML += '<option value="12">Grade 12</option>';
-    } else if (level === 'College') {
+    } else if (level.value === 'College') {
         for (let i = 1; i <= 4; i++) {
             let suffix = i === 1 ? "st" : (i === 2 ? "nd" : (i === 3 ? "rd" : "th"));
             yearSelect.innerHTML += `<option value="${i}">${i}${suffix} Year</option>`;
@@ -95,31 +95,30 @@ function updateYearLevels() {
     }
 }
 
-// Update strand/course options
 function updateStrandCourse() {
-    const level = document.getElementById('educationLevel').value;
+    const level = document.getElementById('educationLevel');
+    if (!level) return;
     const strandSelect = document.getElementById('strandCourse');
     if (!strandSelect) return;
     strandSelect.innerHTML = '<option value="">Select Strand/Course</option>';
     
-    const options = level === 'SHS' ? STRANDS.SHS : STRANDS.College;
+    const options = level.value === 'SHS' ? STRANDS.SHS : STRANDS.College;
     options.forEach(opt => {
         strandSelect.innerHTML += `<option value="${opt}">${opt}</option>`;
     });
 }
 
-// Load subjects based on level and year
 function loadSubjects() {
-    const level = document.getElementById('educationLevel').value;
-    const year = document.getElementById('yearLevel').value;
-    
+    const level = document.getElementById('educationLevel');
+    const year = document.getElementById('yearLevel');
     if (!level || !year) return;
+    if (!level.value || !year.value) return;
     
     let subjectKey = '';
-    if (level === 'SHS') {
-        subjectKey = year === '11' ? 'SHS_G11' : 'SHS_G12';
+    if (level.value === 'SHS') {
+        subjectKey = year.value === '11' ? 'SHS_G11' : 'SHS_G12';
     } else {
-        subjectKey = `College_Y${year}`;
+        subjectKey = `College_Y${year.value}`;
     }
     
     const subjects = SUBJECTS[subjectKey] || [];
@@ -142,10 +141,10 @@ function loadSubjects() {
     calculateTotalFee();
 }
 
-// Calculate total fee
 function calculateTotalFee() {
-    const level = document.getElementById('educationLevel').value;
-    const config = TUITION_FEES[level] || TUITION_FEES.College;
+    const level = document.getElementById('educationLevel');
+    if (!level) return;
+    const config = TUITION_FEES[level.value] || TUITION_FEES.College;
     const subjectCount = currentSubjects.length;
     
     totalFee = config.baseFee + (subjectCount * config.perSubject);
@@ -157,9 +156,9 @@ function calculateTotalFee() {
     updatePaymentDetails();
 }
 
-// Update payment details based on method
 function updatePaymentDetails() {
-    const method = document.getElementById('paymentMethod') ? document.getElementById('paymentMethod').value : 'full';
+    const methodInput = document.getElementById('paymentMethod');
+    const method = methodInput ? methodInput.value : 'full';
     const details = document.getElementById('paymentDetails');
     if (!details) return;
     
@@ -211,7 +210,6 @@ paymentMethods.forEach(el => {
     });
 });
 
-// Convert file to Base64
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -221,20 +219,20 @@ function fileToBase64(file) {
     });
 }
 
-// Function to show enrollment section - FIXED
-function showEnrollmentSection() {
-    console.log("Showing enrollment section");
+// CRITICAL FIX: Force show enrollment section by directly manipulating inline styles
+function forceShowEnrollmentSection() {
+    // Get the enrollment section element
+    const enrollmentSection = document.getElementById('enrollmentSection');
+    if (enrollmentSection) {
+        enrollmentSection.style.display = 'block';
+        enrollmentSection.style.setProperty('display', 'block', 'important');
+    }
     
     // Hide auth section
     const authSection = document.getElementById('authSection');
     if (authSection) {
         authSection.style.display = 'none';
-    }
-    
-    // Show enrollment section
-    const enrollmentSection = document.getElementById('enrollmentSection');
-    if (enrollmentSection) {
-        enrollmentSection.style.display = 'block';
+        authSection.style.setProperty('display', 'none', 'important');
     }
     
     // Show logout button
@@ -243,7 +241,7 @@ function showEnrollmentSection() {
         logoutBtn.style.display = 'block';
     }
     
-    // Show enrolled list
+    // Make sure enrolled list is visible but not blocking
     const enrolledList = document.querySelector('.enrolled-list');
     if (enrolledList) {
         enrolledList.classList.add('active');
@@ -255,62 +253,51 @@ function showEnrollmentSection() {
     if (thankYouSection) {
         thankYouSection.style.display = 'none';
     }
+    
+    console.log("Enrollment section forced to display");
 }
 
-// Function to show auth section
-function showAuthSection() {
-    console.log("Showing auth section");
-    
-    // Show auth section
-    const authSection = document.getElementById('authSection');
-    if (authSection) {
-        authSection.style.display = 'block';
-    }
-    
-    // Hide enrollment section
-    const enrollmentSection = document.getElementById('enrollmentSection');
-    if (enrollmentSection) {
-        enrollmentSection.style.display = 'none';
-    }
-    
-    // Hide thank you section
-    const thankYouSection = document.getElementById('thankYouSection');
-    if (thankYouSection) {
-        thankYouSection.style.display = 'none';
-    }
-    
-    // Hide logout button
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.style.display = 'none';
-    }
-}
-
-// Auth state listener - COMPLETELY FIXED
+// Auth state listener - FIXED with force display
 auth.onAuthStateChanged(async (user) => {
-    console.log("Auth state changed:", user ? "User is logged in: " + user.email : "No user logged in");
+    console.log("Auth state changed:", user ? "Logged in" : "Logged out");
     
     if (user) {
         currentUser = user;
         
-        // Show enrollment section immediately
-        showEnrollmentSection();
+        // FORCE show enrollment section - this overrides any CSS
+        forceShowEnrollmentSection();
         
         // Load students
         loadStudents();
         
-        // Initialize form event listeners
-        initializeFormListeners();
+        // Setup form listeners
+        const educationLevel = document.getElementById('educationLevel');
+        if (educationLevel) {
+            educationLevel.addEventListener('change', function() {
+                updateYearLevels();
+                updateStrandCourse();
+            });
+        }
+        
+        const yearLevel = document.getElementById('yearLevel');
+        if (yearLevel) {
+            yearLevel.addEventListener('change', function() {
+                loadSubjects();
+            });
+        }
+        
+        // Initialize dropdowns
+        updateYearLevels();
+        updateStrandCourse();
         
         // Check if user already submitted application
         try {
             const existingApp = await applicationsRef.orderByChild('userId').equalTo(user.uid).once('value');
             if (existingApp.exists()) {
-                console.log("User already has application");
                 const thankYouSection = document.getElementById('thankYouSection');
-                const enrollmentSection = document.getElementById('enrollmentSection');
+                const enrollmentSectionElem = document.getElementById('enrollmentSection');
                 if (thankYouSection) thankYouSection.style.display = 'block';
-                if (enrollmentSection) enrollmentSection.style.display = 'none';
+                if (enrollmentSectionElem) enrollmentSectionElem.style.display = 'none';
             }
         } catch (error) {
             console.error("Error checking existing application:", error);
@@ -318,37 +305,32 @@ auth.onAuthStateChanged(async (user) => {
         
     } else {
         currentUser = null;
-        showAuthSection();
+        
+        // Show auth section
+        const authSection = document.getElementById('authSection');
+        if (authSection) {
+            authSection.style.display = 'block';
+        }
+        
+        // Hide enrollment section
+        const enrollmentSection = document.getElementById('enrollmentSection');
+        if (enrollmentSection) {
+            enrollmentSection.style.display = 'none';
+        }
+        
+        // Hide thank you section
+        const thankYouSection = document.getElementById('thankYouSection');
+        if (thankYouSection) {
+            thankYouSection.style.display = 'none';
+        }
+        
+        // Hide logout button
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.style.display = 'none';
+        }
     }
 });
-
-// Initialize form listeners
-function initializeFormListeners() {
-    console.log("Initializing form listeners");
-    
-    // Education level change
-    const educationLevel = document.getElementById('educationLevel');
-    if (educationLevel) {
-        educationLevel.removeEventListener('change', handleEducationLevelChange);
-        educationLevel.addEventListener('change', handleEducationLevelChange);
-    }
-    
-    // Year level change
-    const yearLevel = document.getElementById('yearLevel');
-    if (yearLevel) {
-        yearLevel.removeEventListener('change', handleYearLevelChange);
-        yearLevel.addEventListener('change', handleYearLevelChange);
-    }
-}
-
-function handleEducationLevelChange() {
-    updateYearLevels();
-    updateStrandCourse();
-}
-
-function handleYearLevelChange() {
-    loadSubjects();
-}
 
 // Login form
 const loginForm = document.getElementById('loginForm');
@@ -362,13 +344,19 @@ if (loginForm) {
             await auth.signInWithEmailAndPassword(email, password);
             showLoginMessage('Login successful!', 'success');
             document.getElementById('loginForm').reset();
+            // Force show enrollment after login
+            setTimeout(() => {
+                if (auth.currentUser) {
+                    forceShowEnrollmentSection();
+                }
+            }, 500);
         } catch (error) {
             showLoginMessage(error.message, 'error');
         }
     });
 }
 
-// Register form - FIXED to show enrollment after registration
+// Register form - FIXED
 const registerForm = document.getElementById('registerForm');
 if (registerForm) {
     registerForm.addEventListener('submit', async (e) => {
@@ -386,23 +374,21 @@ if (registerForm) {
         try {
             showRegisterMessage('Creating account...', 'success');
             
-            // Create user
             const userCredential = await auth.createUserWithEmailAndPassword(email, password);
             
-            // Save user data to database
             await usersRef.child(userCredential.user.uid).set({
                 name: name,
                 email: email,
                 createdAt: Date.now()
             });
             
-            showRegisterMessage('Registration successful! Redirecting to enrollment form...', 'success');
+            showRegisterMessage('Registration successful! Loading enrollment form...', 'success');
             document.getElementById('registerForm').reset();
             
-            // Force show enrollment section after successful registration
+            // FORCE show enrollment section after registration
             setTimeout(() => {
                 if (auth.currentUser) {
-                    showEnrollmentSection();
+                    forceShowEnrollmentSection();
                 }
             }, 1000);
             
@@ -418,8 +404,6 @@ const logoutBtn = document.getElementById('logoutBtn');
 if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
         await auth.signOut();
-        showAuthSection();
-        location.reload();
     });
 }
 
@@ -485,7 +469,6 @@ if (enrollmentForm) {
             return;
         }
         
-        // Get selected subjects
         const selectedSubjects = [];
         currentSubjects.forEach((subject, index) => {
             const checkbox = document.getElementById(`subj_${index}`);
@@ -547,7 +530,6 @@ if (enrollmentForm) {
             academicStatus: 'Regular'
         };
         
-        // Validate
         if (!applicationData.fullName || !applicationData.email || !applicationData.phone) {
             showMessage('Please fill in all required fields', 'error');
             return;
@@ -557,7 +539,6 @@ if (enrollmentForm) {
             const newAppRef = applicationsRef.push();
             await newAppRef.set(applicationData);
             
-            // Save to students for display
             const studentData = {
                 fullName: applicationData.fullName,
                 email: applicationData.email,
@@ -567,7 +548,6 @@ if (enrollmentForm) {
             };
             await studentsRef.push().set(studentData);
             
-            // Reset form
             enrollmentForm.reset();
             const torFileName = document.getElementById('torFileName');
             const goodMoralFileName = document.getElementById('goodMoralFileName');
@@ -576,10 +556,9 @@ if (enrollmentForm) {
             selectedTorFile = null;
             selectedGoodMoralFile = null;
             
-            // Show thank you page
-            const enrollmentSection = document.getElementById('enrollmentSection');
+            const enrollmentSectionElem = document.getElementById('enrollmentSection');
             const thankYouSection = document.getElementById('thankYouSection');
-            if (enrollmentSection) enrollmentSection.style.display = 'none';
+            if (enrollmentSectionElem) enrollmentSectionElem.style.display = 'none';
             if (thankYouSection) thankYouSection.style.display = 'block';
             
             showMessage('✅ Enrollment submitted successfully!', 'success');
@@ -620,13 +599,13 @@ function showRegisterMessage(msg, type) {
     }
 }
 
-// Initialize UI elements on page load
+// Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("DOM fully loaded - initializing UI");
+    console.log("DOM fully loaded");
+    
     updateYearLevels();
     updateStrandCourse();
     
-    // Initialize payment method if elements exist
     const firstPaymentMethod = document.querySelector('.payment-method');
     if (firstPaymentMethod) {
         firstPaymentMethod.classList.add('selected');
@@ -636,14 +615,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // Check initial auth state
+    // Check if user is already logged in
     if (auth.currentUser) {
-        console.log("User already logged in on page load");
-        showEnrollmentSection();
+        console.log("User already logged in, forcing enrollment section");
+        forceShowEnrollmentSection();
         loadStudents();
-        initializeFormListeners();
-    } else {
-        console.log("No user logged in on page load");
-        showAuthSection();
     }
 });

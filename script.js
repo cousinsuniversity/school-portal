@@ -14,6 +14,7 @@ const auth = firebase.auth();
 let studentsRef = database.ref('students');
 let usersRef = database.ref('users');
 let applicationsRef = database.ref('applications');
+let gradesRef = database.ref('grades');
 let currentUser = null;
 let selectedTorFile = null;
 let selectedGoodMoralFile = null;
@@ -76,7 +77,7 @@ const STRANDS = {
 
 // Section management functions
 function showSection(sectionId) {
-    const sections = ['authSection', 'enrollmentSection', 'thankYouSection', 'recentStudentsSection'];
+    const sections = ['authSection', 'enrollmentSection', 'thankYouSection', 'dashboardSection'];
     sections.forEach(id => {
         const section = document.getElementById(id);
         if (section) {
@@ -107,8 +108,8 @@ function showThankYou() {
     showSection('thankYouSection');
 }
 
-function showRecentStudents() {
-    showSection('recentStudentsSection');
+function showStudentDashboard() {
+    showSection('dashboardSection');
 }
 
 // Year level options
@@ -265,9 +266,11 @@ auth.onAuthStateChanged(async (user) => {
         const userApp = await applicationsRef.orderByChild('userId').equalTo(user.uid).once('value');
         const hasApplication = userApp.exists();
         let applicationStatus = null;
+        let applicationData = null;
         
         if (hasApplication) {
             userApp.forEach(snap => {
+                applicationData = snap.val();
                 applicationStatus = snap.val().status;
             });
         }
@@ -277,11 +280,9 @@ auth.onAuthStateChanged(async (user) => {
             // No application yet - show enrollment form
             console.log("No application found - showing enrollment form");
             showEnrollmentForm();
-            // Initialize form
             updateYearLevels();
             updateStrandCourse();
             
-            // Add event listeners
             const educationLevel = document.getElementById('educationLevel');
             if (educationLevel) {
                 educationLevel.onchange = function() {
@@ -296,23 +297,18 @@ auth.onAuthStateChanged(async (user) => {
                 };
             }
             
-            // Show recent students in background
-            loadStudents();
-            showRecentStudents();
-            
         } else if (applicationStatus === 'pending') {
             // Application pending - show thank you
             console.log("Application pending - showing thank you");
             showThankYou();
-            showRecentStudents();
             
         } else if (applicationStatus === 'approved') {
-            // Application approved - show grades and subjects
+            // Application approved - show dashboard with grades
             console.log("Application approved - showing student dashboard");
-            showStudentDashboard(user.uid);
+            await loadStudentGrades(user.uid, applicationData);
+            showStudentDashboard();
         }
         
-        // Show logout button
         const logoutBtn = document.getElementById('logoutBtn');
         if (logoutBtn) logoutBtn.style.display = 'block';
         
@@ -324,44 +320,93 @@ auth.onAuthStateChanged(async (user) => {
     }
 });
 
-// Student dashboard for approved students
-async function showStudentDashboard(userId) {
-    showSection('recentStudentsSection');
-    
-    // Get student data
-    const studentData = await applicationsRef.orderByChild('userId').equalTo(userId).once('value');
-    let student = null;
-    studentData.forEach(snap => {
-        student = snap.val();
+// Load student grades and display dashboard
+async function loadStudentGrades(userId, applicationData) {
+    const grades = await gradesRef.orderByChild('studentId').equalTo(userId).once('value');
+    const studentGrades = [];
+    grades.forEach(snap => {
+        studentGrades.push(snap.val());
     });
     
-    if (student) {
-        const studentList = document.getElementById('studentList');
-        if (studentList) {
-            studentList.innerHTML = `
-                <div class="student-card">
-                    <h3>Welcome, ${student.fullName}!</h3>
-                    <div class="student-details">
-                        <div><strong>Status:</strong> <span style="color:green;">APPROVED</span></div>
-                        <div><strong>Education Level:</strong> ${student.educationLevel}</div>
-                        <div><strong>Year Level:</strong> ${student.yearLevel}</div>
-                        <div><strong>Strand/Course:</strong> ${student.strandCourse}</div>
-                        <div><strong>Enrollment Date:</strong> ${new Date(student.enrollmentDate).toLocaleDateString()}</div>
-                    </div>
+    const dashboard = document.getElementById('studentDashboard');
+    if (dashboard) {
+        const passedCount = studentGrades.filter(g => g.remarks === 'PASSED').length;
+        const failedCount = studentGrades.filter(g => g.remarks === 'FAILED').length;
+        const overallStatus = failedCount > 0 ? 'IRREGULAR' : 'REGULAR';
+        
+        dashboard.innerHTML = `
+            <div class="dashboard-card">
+                <h3><i class="fas fa-user-graduate"></i> Welcome, ${applicationData.fullName}!</h3>
+                <div class="student-details">
+                    <div><strong>Student ID:</strong> ${userId.substring(0, 8)}...</div>
+                    <div><strong>Status:</strong> <span style="color:green;">APPROVED</span></div>
+                    <div><strong>Academic Status:</strong> <span class="${overallStatus === 'REGULAR' ? 'grade-pass' : 'grade-fail'}">${overallStatus}</span></div>
+                    <div><strong>Education Level:</strong> ${applicationData.educationLevel}</div>
+                    <div><strong>Year Level:</strong> ${applicationData.yearLevel}</div>
+                    <div><strong>Strand/Course:</strong> ${applicationData.strandCourse}</div>
+                    <div><strong>Enrollment Date:</strong> ${new Date(applicationData.enrollmentDate).toLocaleDateString()}</div>
                 </div>
-                <h3>Your Subjects</h3>
+            </div>
+            
+            <div class="dashboard-card">
+                <h3><i class="fas fa-book"></i> Your Subjects</h3>
                 <div class="subjects-grid">
-                    ${student.selectedSubjects.map(subj => `
+                    ${applicationData.selectedSubjects ? applicationData.selectedSubjects.map(subj => `
                         <div class="subject-item">
                             <strong>${subj.name}</strong> (${subj.units} units)
                         </div>
-                    `).join('')}
+                    `).join('') : '<p>No subjects loaded</p>'}
                 </div>
-                <h3>Your Grades (Coming Soon)</h3>
-                <p>Your grades will be available here once posted by the admin.</p>
-            `;
-        }
+            </div>
+            
+            <div class="dashboard-card">
+                <h3><i class="fas fa-chart-line"></i> Your Grades</h3>
+                ${studentGrades.length > 0 ? `
+                    <div>
+                        ${studentGrades.map(grade => `
+                            <div class="grade-item">
+                                <span><strong>${grade.subject}</strong></span>
+                                <span>Numerical: ${grade.numericalGrade}%</span>
+                                <span>Letter: ${grade.letterGrade}</span>
+                                <span class="${grade.remarks === 'PASSED' ? 'grade-pass' : 'grade-fail'}">${grade.remarks}</span>
+                            </div>
+                        `).join('')}
+                        <div class="grade-item" style="margin-top: 15px; background: #e9ecef;">
+                            <strong>Summary:</strong>
+                            <span>Passed: ${passedCount}</span>
+                            <span>Failed: ${failedCount}</span>
+                            <span>GPA: ${calculateGPA(studentGrades)}</span>
+                        </div>
+                    </div>
+                ` : '<p>No grades available yet. Please check back later.</p>'}
+            </div>
+            
+            <div class="dashboard-card">
+                <h3><i class="fas fa-file-invoice-dollar"></i> Payment Information</h3>
+                <div class="student-details">
+                    <div><strong>Total Tuition Fee:</strong> ₱${applicationData.totalFee ? applicationData.totalFee.toLocaleString() : '0'}</div>
+                    <div><strong>Payment Method:</strong> ${applicationData.paymentMethod === 'full' ? 'Full Payment' : (applicationData.paymentMethod === 'installment' ? 'Installment (3 payments)' : 'School Pay Later')}</div>
+                    <div><strong>Payment Status:</strong> Pending</div>
+                </div>
+            </div>
+        `;
     }
+}
+
+function calculateGPA(grades) {
+    if (grades.length === 0) return 'N/A';
+    let total = 0;
+    grades.forEach(g => {
+        if (g.letterGrade === 'A' || g.letterGrade === '1.0') total += 4.0;
+        else if (g.letterGrade === 'B' || g.letterGrade === '1.25') total += 3.5;
+        else if (g.letterGrade === 'C' || g.letterGrade === '1.5') total += 3.0;
+        else if (g.letterGrade === 'D' || g.letterGrade === '1.75') total += 2.5;
+        else if (g.letterGrade === '2.0') total += 2.0;
+        else if (g.letterGrade === '2.25') total += 1.5;
+        else if (g.letterGrade === '2.5' || g.letterGrade === '3.0') total += 1.0;
+        else total += 0;
+    });
+    return (total / grades.length).toFixed(2);
 }
 
 // Login form
@@ -407,7 +452,6 @@ if (registerForm) {
             });
             showRegisterMessage('Registration successful! Redirecting to enrollment form...', 'success');
             document.getElementById('registerForm').reset();
-            // Auth state change will handle showing enrollment form
         } catch (error) {
             console.error("Registration error:", error);
             showRegisterMessage(error.message, 'error');
@@ -429,49 +473,6 @@ const backToHomeBtn = document.getElementById('backToHomeBtn');
 if (backToHomeBtn) {
     backToHomeBtn.addEventListener('click', () => {
         showEnrollmentForm();
-    });
-}
-
-// Load students for display
-function loadStudents() {
-    studentsRef.once('value', (snapshot) => {
-        const students = [];
-        snapshot.forEach((childSnapshot) => {
-            const student = childSnapshot.val();
-            student.id = childSnapshot.key;
-            students.push(student);
-        });
-        students.sort((a, b) => b.enrollmentDate - a.enrollmentDate);
-        displayRecentStudents(students);
-    });
-}
-
-function displayRecentStudents(students) {
-    const studentList = document.getElementById('studentList');
-    if (!studentList) return;
-    
-    if (students.length === 0) {
-        studentList.innerHTML = '<p style="text-align: center; color: #999;">No students enrolled yet. Be the first to register!</p>';
-        return;
-    }
-    
-    // Check if we're showing dashboard or just recent students
-    if (studentList.innerHTML.includes('Welcome')) {
-        return; // Don't override dashboard
-    }
-    
-    studentList.innerHTML = '<h3>Recently Enrolled Students</h3>';
-    students.slice(0, 5).forEach(student => {
-        const card = document.createElement('div');
-        card.className = 'student-card';
-        card.innerHTML = `
-            <h3>${student.fullName || 'N/A'}</h3>
-            <div class="student-details">
-                <div><strong>Grade/Level:</strong> ${student.grade || student.educationLevel || 'N/A'}</div>
-                <div><strong>Status:</strong> ${student.status || 'Pending'}</div>
-            </div>
-        `;
-        studentList.appendChild(card);
     });
 }
 
@@ -540,15 +541,6 @@ if (enrollmentForm) {
         try {
             await applicationsRef.push().set(applicationData);
             
-            // Save to students for public display
-            await studentsRef.push().set({
-                fullName: applicationData.fullName,
-                email: applicationData.email,
-                grade: applicationData.educationLevel + " " + applicationData.yearLevel,
-                enrollmentDate: applicationData.enrollmentDate,
-                status: 'pending'
-            });
-            
             enrollmentForm.reset();
             if (document.getElementById('torFileName')) document.getElementById('torFileName').innerHTML = '';
             if (document.getElementById('goodMoralFileName')) document.getElementById('goodMoralFileName').innerHTML = '';
@@ -609,7 +601,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updatePaymentDetails();
     }
-    
-    loadStudents();
-    showRecentStudents();
 });

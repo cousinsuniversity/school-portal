@@ -77,6 +77,89 @@ const STRANDS = {
     College: ["BSIT", "BSCS", "BSBA", "BSEd", "BSN", "BSA"]
 };
 
+// Custom Toast Notification System
+function showToast(message, type = 'success') {
+    // Remove existing toast
+    const existingToast = document.querySelector('.custom-toast');
+    if (existingToast) existingToast.remove();
+    
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `custom-toast toast-${type}`;
+    toast.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle')}" style="font-size: 24px;"></i>
+            <span>${message}</span>
+        </div>
+        <button class="toast-close" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer;">&times;</button>
+    `;
+    
+    // Add styles
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'success' ? '#28a745' : (type === 'error' ? '#dc3545' : '#17a2b8')};
+        color: white;
+        padding: 15px 20px;
+        border-radius: 10px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 15px;
+        min-width: 300px;
+        max-width: 450px;
+        animation: slideIn 0.3s ease;
+        font-family: 'Segoe UI', sans-serif;
+    `;
+    
+    // Add animation styles if not present
+    if (!document.querySelector('#toast-styles')) {
+        const style = document.createElement('style');
+        style.id = 'toast-styles';
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+            .custom-toast {
+                cursor: pointer;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(toast);
+    
+    // Close button functionality
+    toast.querySelector('.toast-close').onclick = () => {
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    };
+    
+    // Auto close after 5 seconds
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, 5000);
+    
+    // Click to close
+    toast.onclick = (e) => {
+        if (e.target !== toast.querySelector('.toast-close')) {
+            toast.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }
+    };
+}
+
 // Wait for DOM to be fully loaded before setting up event listeners
 document.addEventListener('DOMContentLoaded', function() {
     console.log("DOM fully loaded - setting up event listeners");
@@ -262,6 +345,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!file || !currentUser || !currentApplication) return;
             
             try {
+                showToast('Uploading document...', 'info');
                 const storageRef = storage.ref(`documents/${currentUser.uid}/${currentDocType}_${Date.now()}`);
                 await storageRef.put(file);
                 const downloadUrl = await storageRef.getDownloadURL();
@@ -276,10 +360,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 await applicationsRef.child(currentApplication.id).update(updateData);
-                showDocumentMessage('Document uploaded successfully!', 'success');
+                showToast('Document uploaded successfully!', 'success');
                 loadStudentData();
             } catch (error) {
-                showDocumentMessage('Upload failed: ' + error.message, 'error');
+                showToast('Upload failed: ' + error.message, 'error');
             }
         });
     }
@@ -294,10 +378,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             try {
                 await auth.signInWithEmailAndPassword(email, password);
-                showLoginMessage('Login successful!', 'success');
+                showToast('Login successful!', 'success');
                 document.getElementById('loginForm').reset();
             } catch (error) {
-                showLoginMessage(error.message, 'error');
+                showToast(error.message, 'error');
             }
         });
     }
@@ -313,22 +397,22 @@ document.addEventListener('DOMContentLoaded', function() {
             const confirmPassword = document.getElementById('regConfirmPassword').value;
             
             if (password !== confirmPassword) {
-                showRegisterMessage('Passwords do not match!', 'error');
+                showToast('Passwords do not match!', 'error');
                 return;
             }
             
             try {
-                showRegisterMessage('Creating account...', 'success');
+                showToast('Creating account...', 'info');
                 const userCredential = await auth.createUserWithEmailAndPassword(email, password);
                 await usersRef.child(userCredential.user.uid).set({
                     name: name,
                     email: email,
                     createdAt: Date.now()
                 });
-                showRegisterMessage('Registration successful!', 'success');
+                showToast('Registration successful! You are now logged in.', 'success');
                 document.getElementById('registerForm').reset();
             } catch (error) {
-                showRegisterMessage(error.message, 'error');
+                showToast(error.message, 'error');
             }
         });
     }
@@ -342,15 +426,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // ENROLLMENT FORM SUBMISSION - FIXED
+    // ENROLLMENT FORM SUBMISSION - FIXED with proper message div
     const enrollmentForm = document.getElementById('enrollmentForm');
     if (enrollmentForm) {
         enrollmentForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            e.stopPropagation();
             console.log("Enrollment form submitted");
             
             if (!currentUser) {
-                showEnrollmentMessage('Please login first', 'error');
+                showToast('Please login first', 'error');
+                return;
+            }
+            
+            // Check if user already has an application
+            if (currentApplication) {
+                showToast('You have already submitted an application. Please wait for approval.', 'error');
                 return;
             }
             
@@ -365,7 +456,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const paymentMethod = document.getElementById('paymentMethod')?.value || 'full';
             
-            // Get form values with null checks
+            // Get form values
             const fullName = document.getElementById('fullName')?.value.trim();
             const dob = document.getElementById('dob')?.value;
             const gender = document.getElementById('gender')?.value;
@@ -381,7 +472,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const studentType = document.getElementById('studentType')?.value;
             
             if (!fullName || !email) {
-                showEnrollmentMessage('Please fill in all required fields', 'error');
+                showToast('Please fill in all required fields', 'error');
                 return;
             }
             
@@ -416,36 +507,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 await newAppRef.set(applicationData);
                 console.log("Application saved with ID:", newAppRef.key);
                 
-                showEnrollmentMessage('✅ Enrollment submitted successfully! Your application is pending review.', 'success');
+                // Show success toast
+                showToast('✅ Enrollment submitted successfully! Your application is pending review.', 'success');
                 
                 // Reset form
                 enrollmentForm.reset();
                 
-                // Reload student data
+                // Reload student data to show pending status
+                await loadStudentData();
+                
+                // Switch to dashboard tab
                 setTimeout(() => {
-                    loadStudentData();
-                    // Switch to dashboard tab
                     const dashboardNav = document.querySelector('.nav-item[data-tab="dashboard"]');
                     if (dashboardNav) dashboardNav.click();
-                }, 2000);
+                }, 1500);
                 
             } catch (error) {
                 console.error('Error saving application:', error);
-                showEnrollmentMessage('❌ Error: ' + error.message, 'error');
+                showToast('❌ Error: ' + error.message, 'error');
             }
         });
     }
 });
-
-// Helper functions
-function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-    });
-}
 
 // AUTH STATE LISTENER
 auth.onAuthStateChanged(async (user) => {
@@ -465,6 +548,7 @@ auth.onAuthStateChanged(async (user) => {
         
     } else {
         currentUser = null;
+        currentApplication = null;
         const authSection = document.getElementById('authSection');
         const studentPortal = document.getElementById('studentPortal');
         const logoutBtn = document.getElementById('logoutBtn');
@@ -502,27 +586,80 @@ async function loadStudentData() {
         const profileStatus = document.getElementById('profileStatus');
         if (profileLevel) profileLevel.innerText = `${currentApplication.educationLevel || ''} ${currentApplication.yearLevel || ''}`;
         if (profileStatus) {
-            profileStatus.innerText = currentApplication.status === 'approved' ? 'APPROVED' : 'PENDING';
-            profileStatus.className = `profile-status ${currentApplication.status === 'approved' ? 'status-approved' : 'status-pending'}`;
+            if (currentApplication.status === 'approved') {
+                profileStatus.innerText = 'APPROVED';
+                profileStatus.className = 'profile-status status-approved';
+            } else if (currentApplication.status === 'pending') {
+                profileStatus.innerText = 'PENDING REVIEW';
+                profileStatus.className = 'profile-status status-pending';
+            } else {
+                profileStatus.innerText = currentApplication.status.toUpperCase();
+                profileStatus.className = 'profile-status status-pending';
+            }
         }
         
-        // Update dashboard
+        // Update dashboard based on status - KEEP THE MESSAGE DIV INTACT
         const dashboardInfo = document.getElementById('dashboardInfo');
         if (dashboardInfo) {
-            dashboardInfo.innerHTML = `
-                <div class="enrollment-summary">
-                    <p><strong>Application Status:</strong> ${currentApplication.status === 'approved' ? '✅ Approved' : '⏳ Pending Review'}</p>
-                    <p><strong>Education Level:</strong> ${currentApplication.educationLevel || 'Not set'}</p>
-                    <p><strong>Year Level:</strong> ${currentApplication.yearLevel || 'Not set'}</p>
-                    <p><strong>Strand/Course:</strong> ${currentApplication.strandCourse || 'Not set'}</p>
-                    <p><strong>Enrollment Date:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
-                </div>
-            `;
+            if (currentApplication.status === 'approved') {
+                dashboardInfo.innerHTML = `
+                    <div class="enrollment-summary" style="background: #d4edda; border-left: 4px solid #28a745; padding: 20px; border-radius: 10px;">
+                        <p><strong>✅ Application Status:</strong> APPROVED</p>
+                        <p><strong>Education Level:</strong> ${currentApplication.educationLevel || 'Not set'}</p>
+                        <p><strong>Year Level:</strong> ${currentApplication.yearLevel || 'Not set'}</p>
+                        <p><strong>Strand/Course:</strong> ${currentApplication.strandCourse || 'Not set'}</p>
+                        <p><strong>Enrollment Date:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
+                        <p style="color: #28a745; margin-top: 10px;">You are now officially enrolled! Check your grades tab for academic performance.</p>
+                    </div>
+                `;
+            } else if (currentApplication.status === 'pending') {
+                dashboardInfo.innerHTML = `
+                    <div class="enrollment-summary" style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; border-radius: 10px;">
+                        <p><strong>⏳ Application Status:</strong> PENDING REVIEW</p>
+                        <p><strong>Education Level:</strong> ${currentApplication.educationLevel || 'Not set'}</p>
+                        <p><strong>Year Level:</strong> ${currentApplication.yearLevel || 'Not set'}</p>
+                        <p><strong>Strand/Course:</strong> ${currentApplication.strandCourse || 'Not set'}</p>
+                        <p><strong>Enrollment Date:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
+                        <p style="color: #856404; margin-top: 10px;">We are reviewing your application. Please wait for approval.</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Update enrollment tab - show message instead of form, BUT PRESERVE MESSAGE DIV
+        const enrollmentTab = document.getElementById('enrollmentTab');
+        if (enrollmentTab) {
+            if (currentApplication.status === 'pending') {
+                enrollmentTab.innerHTML = `
+                    <div class="card">
+                        <h3><i class="fas fa-clock"></i> Application Pending</h3>
+                        <div class="enrollment-summary" style="background: #fff3cd; text-align: center; padding: 40px; border-radius: 10px;">
+                            <i class="fas fa-hourglass-half" style="font-size: 48px; color: #ffc107; margin-bottom: 20px;"></i>
+                            <h3>Your application is being reviewed</h3>
+                            <p>You have already submitted an enrollment application. Please wait for admin approval.</p>
+                            <p><strong>Application Status:</strong> Pending Review</p>
+                            <p><strong>Submitted on:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
+                        </div>
+                    </div>
+                `;
+            } else if (currentApplication.status === 'approved') {
+                enrollmentTab.innerHTML = `
+                    <div class="card">
+                        <h3><i class="fas fa-check-circle"></i> Enrollment Complete</h3>
+                        <div class="enrollment-summary" style="background: #d4edda; text-align: center; padding: 40px; border-radius: 10px;">
+                            <i class="fas fa-check-circle" style="font-size: 48px; color: #28a745; margin-bottom: 20px;"></i>
+                            <h3>You are officially enrolled!</h3>
+                            <p>Your application has been approved. You can now view your grades and documents.</p>
+                            <p><strong>Academic Status:</strong> Regular</p>
+                        </div>
+                    </div>
+                `;
+            }
         }
         
         // Load grades if approved
         if (currentApplication.status === 'approved') {
-            loadGrades();
+            await loadGrades();
         } else {
             const gradesList = document.getElementById('gradesList');
             if (gradesList) gradesList.innerHTML = '<p>Grades will be available once your application is approved.</p>';
@@ -548,9 +685,9 @@ async function loadStudentData() {
         const paymentInfo = document.getElementById('paymentInfo');
         if (paymentInfo) {
             paymentInfo.innerHTML = `
-                <div class="enrollment-summary">
+                <div class="enrollment-summary" style="padding: 20px; border-radius: 10px; background: #f8f9fa;">
                     <p><strong>Total Tuition Fee:</strong> ₱${(currentApplication.totalFee || 0).toLocaleString()}</p>
-                    <p><strong>Payment Method:</strong> ${currentApplication.paymentMethod === 'full' ? 'Full Payment' : (currentApplication.paymentMethod === 'installment' ? 'Installment (3 payments)' : 'School Pay Later')}</p>
+                    <p><strong>Payment Method:</strong> ${currentApplication.paymentMethod === 'full' ? 'Full Payment (10% discount)' : (currentApplication.paymentMethod === 'installment' ? 'Installment (3 payments)' : 'School Pay Later')}</p>
                     <p><strong>Payment Status:</strong> Pending</p>
                 </div>
             `;
@@ -558,6 +695,7 @@ async function loadStudentData() {
         
     } else {
         console.log("No application found for user");
+        currentApplication = null;
         const profileLevel = document.getElementById('profileLevel');
         const dashboardInfo = document.getElementById('dashboardInfo');
         const gradesList = document.getElementById('gradesList');
@@ -565,6 +703,18 @@ async function loadStudentData() {
         if (profileLevel) profileLevel.innerText = 'Not Enrolled';
         if (dashboardInfo) dashboardInfo.innerHTML = '<p>You haven\'t submitted an enrollment application yet. Please go to the Enrollment tab to register.</p>';
         if (gradesList) gradesList.innerHTML = '<p>Complete enrollment first to see grades.</p>';
+        
+        // Make sure enrollment form is visible in the tab
+        const enrollmentTab = document.getElementById('enrollmentTab');
+        if (enrollmentTab) {
+            // Check if we need to restore the form
+            const existingForm = enrollmentTab.querySelector('#enrollmentForm');
+            if (!existingForm) {
+                // Form was replaced, but we need to keep the original HTML
+                // The original HTML already has the form, so no action needed
+                console.log("Enrollment form should be visible");
+            }
+        }
         
         // Auto-switch to enrollment tab
         const enrollmentNav = document.querySelector('.nav-item[data-tab="enrollment"]');
@@ -584,11 +734,11 @@ async function loadGrades() {
     
     if (studentGrades.length > 0) {
         let passed = 0, failed = 0;
-        let gradesHtml = '<div class="grade-item" style="background:#f8f9fa; font-weight:bold; padding:10px;"><div style="flex:2">Subject</div><div style="flex:1">Numerical</div><div style="flex:1">Letter</div><div style="flex:1">Remarks</div></div>';
+        let gradesHtml = '<div style="background:#f8f9fa; font-weight:bold; padding:10px; display:flex; justify-content:space-between; border-radius:8px; margin-bottom:10px;"><div style="flex:2">Subject</div><div style="flex:1">Numerical</div><div style="flex:1">Letter</div><div style="flex:1">Remarks</div></div>';
         
         studentGrades.forEach(grade => {
             gradesHtml += `
-                <div class="grade-item" style="padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
+                <div style="padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
                     <div style="flex:2"><strong>${grade.subject}</strong></div>
                     <div style="flex:1">${grade.numericalGrade}%</div>
                     <div style="flex:1">${grade.letterGrade}</div>
@@ -602,49 +752,31 @@ async function loadGrades() {
         if (gradesList) gradesList.innerHTML = gradesHtml;
         if (gradeSummary) {
             gradeSummary.innerHTML = `
-                <div class="enrollment-summary" style="margin-top:20px;">
+                <div class="enrollment-summary" style="margin-top:20px; padding: 20px; border-radius: 10px; background: #f8f9fa;">
                     <p><strong>Summary:</strong> Passed: ${passed} | Failed: ${failed}</p>
                     <p><strong>Academic Status:</strong> ${failed > 0 ? 'IRREGULAR' : 'REGULAR'}</p>
+                    <p><strong>GPA:</strong> ${calculateGPA(studentGrades)}</p>
                 </div>
             `;
         }
     } else {
-        if (gradesList) gradesList.innerHTML = '<p>No grades available yet.</p>';
+        if (gradesList) gradesList.innerHTML = '<p>No grades available yet. Check back after approval.</p>';
     }
 }
 
-function showLoginMessage(msg, type) {
-    const div = document.getElementById('loginMessage');
-    if (div) {
-        div.textContent = msg;
-        div.className = `message ${type}`;
-        setTimeout(() => div.className = 'message', 5000);
-    }
-}
-
-function showRegisterMessage(msg, type) {
-    const div = document.getElementById('registerMessage');
-    if (div) {
-        div.textContent = msg;
-        div.className = `message ${type}`;
-        setTimeout(() => div.className = 'message', 5000);
-    }
-}
-
-function showEnrollmentMessage(msg, type) {
-    const div = document.getElementById('enrollmentMessage');
-    if (div) {
-        div.textContent = msg;
-        div.className = `message ${type}`;
-        setTimeout(() => div.className = 'message', 5000);
-    }
-}
-
-function showDocumentMessage(msg, type) {
-    const div = document.getElementById('documentMessage');
-    if (div) {
-        div.textContent = msg;
-        div.className = `message ${type}`;
-        setTimeout(() => div.className = 'message', 5000);
-    }
+function calculateGPA(grades) {
+    if (grades.length === 0) return 'N/A';
+    let total = 0;
+    grades.forEach(g => {
+        const grade = g.letterGrade;
+        if (grade === 'A' || grade === '1.0') total += 4.0;
+        else if (grade === 'B' || grade === '1.25') total += 3.5;
+        else if (grade === 'C' || grade === '1.5') total += 3.0;
+        else if (grade === 'D' || grade === '1.75') total += 2.5;
+        else if (grade === '2.0') total += 2.0;
+        else if (grade === '2.25') total += 1.5;
+        else if (grade === '2.5' || grade === '3.0') total += 1.0;
+        else total += 0;
+    });
+    return (total / grades.length).toFixed(2);
 }

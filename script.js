@@ -78,96 +78,64 @@ const STRANDS = {
     College: ["BSIT", "BSCS", "BSBA", "BSEd", "BSN", "BSA"]
 };
 
-// Add toast styles to document
-const toastStyles = document.createElement('style');
-toastStyles.textContent = `
-    @keyframes toastSlideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-    @keyframes toastSlideOut {
-        from { transform: translateX(0); opacity: 1; }
-        to { transform: translateX(100%); opacity: 0; }
-    }
-    .custom-toast {
-        position: fixed !important;
-        top: 20px !important;
-        right: 20px !important;
-        z-index: 999999 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: space-between !important;
-        gap: 15px !important;
-        min-width: 300px !important;
-        max-width: 450px !important;
-        padding: 15px 20px !important;
-        border-radius: 10px !important;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3) !important;
-        font-family: 'Segoe UI', sans-serif !important;
-        font-size: 14px !important;
-        animation: toastSlideIn 0.3s ease !important;
-        cursor: pointer !important;
-    }
-    .toast-success { background: #28a745 !important; color: white !important; }
-    .toast-error { background: #dc3545 !important; color: white !important; }
-    .toast-info { background: #17a2b8 !important; color: white !important; }
-    .toast-close-btn {
-        background: none !important;
-        border: none !important;
-        color: white !important;
-        font-size: 20px !important;
-        cursor: pointer !important;
-        padding: 0 5px !important;
-        opacity: 0.8 !important;
-    }
-    .toast-close-btn:hover { opacity: 1 !important; }
-`;
-document.head.appendChild(toastStyles);
-
-// Custom Toast Notification Function
-function showToast(message, type = 'success') {
-    console.log("Showing toast:", message, type);
-    
-    // Remove existing toast
-    const existingToast = document.querySelector('.custom-toast');
-    if (existingToast) existingToast.remove();
-    
-    // Create toast element
-    const toast = document.createElement('div');
-    toast.className = `custom-toast toast-${type}`;
-    toast.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
-            <i class="fas ${type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle')}" style="font-size: 20px;"></i>
+// SIMPLE ALERT FUNCTION (reliable fallback)
+function showSimpleAlert(message, type) {
+    // Create a simple div alert that always works
+    const alertDiv = document.createElement('div');
+    alertDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'success' ? '#28a745' : '#dc3545'};
+        color: white;
+        padding: 15px 20px;
+        border-radius: 10px;
+        z-index: 999999;
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 14px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        animation: slideInAlert 0.3s ease;
+        max-width: 400px;
+    `;
+    alertDiv.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
             <span>${message}</span>
         </div>
-        <button class="toast-close-btn">&times;</button>
     `;
     
-    document.body.appendChild(toast);
+    // Add animation style if not exists
+    if (!document.querySelector('#alertStyles')) {
+        const style = document.createElement('style');
+        style.id = 'alertStyles';
+        style.textContent = `
+            @keyframes slideInAlert {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOutAlert {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
     
-    // Close button functionality
-    const closeBtn = toast.querySelector('.toast-close-btn');
-    closeBtn.onclick = (e) => {
-        e.stopPropagation();
-        toast.style.animation = 'toastSlideOut 0.3s ease';
-        setTimeout(() => toast.remove(), 300);
-    };
+    document.body.appendChild(alertDiv);
     
-    // Click to close
-    toast.onclick = (e) => {
-        if (e.target !== closeBtn) {
-            toast.style.animation = 'toastSlideOut 0.3s ease';
-            setTimeout(() => toast.remove(), 300);
-        }
-    };
-    
-    // Auto close after 4 seconds
+    // Auto remove after 4 seconds
     setTimeout(() => {
-        if (toast.parentNode) {
-            toast.style.animation = 'toastSlideOut 0.3s ease';
-            setTimeout(() => toast.remove(), 300);
+        if (alertDiv.parentNode) {
+            alertDiv.style.animation = 'slideOutAlert 0.3s ease';
+            setTimeout(() => alertDiv.remove(), 300);
         }
     }, 4000);
+    
+    // Click to dismiss
+    alertDiv.onclick = () => {
+        alertDiv.style.animation = 'slideOutAlert 0.3s ease';
+        setTimeout(() => alertDiv.remove(), 300);
+    };
 }
 
 // Wait for DOM to be fully loaded
@@ -328,6 +296,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize
     updateYearLevels();
     updateStrandCourse();
+    loadSubjects();
     
     // Document upload handlers
     const uploadTorBtn = document.getElementById('uploadTorBtn');
@@ -355,7 +324,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!file || !currentUser || !currentApplication) return;
             
             try {
-                showToast('Uploading document...', 'info');
+                showSimpleAlert('Uploading document...', 'info');
                 const storageRef = storage.ref(`documents/${currentUser.uid}/${currentDocType}_${Date.now()}`);
                 await storageRef.put(file);
                 const downloadUrl = await storageRef.getDownloadURL();
@@ -370,10 +339,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 await applicationsRef.child(currentApplication.id).update(updateData);
-                showToast('Document uploaded successfully!', 'success');
+                showSimpleAlert('Document uploaded successfully!', 'success');
                 loadStudentData();
             } catch (error) {
-                showToast('Upload failed: ' + error.message, 'error');
+                showSimpleAlert('Upload failed: ' + error.message, 'error');
             }
         });
     }
@@ -388,10 +357,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             try {
                 await auth.signInWithEmailAndPassword(email, password);
-                showToast('Login successful!', 'success');
+                showSimpleAlert('Login successful!', 'success');
                 document.getElementById('loginForm').reset();
             } catch (error) {
-                showToast(error.message, 'error');
+                showSimpleAlert(error.message, 'error');
             }
         });
     }
@@ -407,22 +376,22 @@ document.addEventListener('DOMContentLoaded', function() {
             const confirmPassword = document.getElementById('regConfirmPassword').value;
             
             if (password !== confirmPassword) {
-                showToast('Passwords do not match!', 'error');
+                showSimpleAlert('Passwords do not match!', 'error');
                 return;
             }
             
             try {
-                showToast('Creating account...', 'info');
+                showSimpleAlert('Creating account...', 'info');
                 const userCredential = await auth.createUserWithEmailAndPassword(email, password);
                 await usersRef.child(userCredential.user.uid).set({
                     name: name,
                     email: email,
                     createdAt: Date.now()
                 });
-                showToast('Registration successful! You are now logged in.', 'success');
+                showSimpleAlert('Registration successful! You are now logged in.', 'success');
                 document.getElementById('registerForm').reset();
             } catch (error) {
-                showToast(error.message, 'error');
+                showSimpleAlert(error.message, 'error');
             }
         });
     }
@@ -436,7 +405,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // ENROLLMENT FORM SUBMISSION
+    // ENROLLMENT FORM SUBMISSION - FIXED with simple alert
     const enrollmentForm = document.getElementById('enrollmentForm');
     if (enrollmentForm) {
         enrollmentForm.addEventListener('submit', async (e) => {
@@ -445,13 +414,13 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log("Enrollment form submitted");
             
             if (!currentUser) {
-                showToast('Please login first', 'error');
+                showSimpleAlert('Please login first', 'error');
                 return;
             }
             
             // Check if user already has an application
             if (currentApplication) {
-                showToast('You have already submitted an application. Please wait for approval.', 'error');
+                showSimpleAlert('You have already submitted an application. Please wait for approval.', 'error');
                 return;
             }
             
@@ -482,7 +451,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const studentType = document.getElementById('studentType')?.value;
             
             if (!fullName || !email) {
-                showToast('Please fill in all required fields', 'error');
+                showSimpleAlert('Please fill in all required fields', 'error');
                 return;
             }
             
@@ -517,7 +486,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 await newAppRef.set(applicationData);
                 console.log("Application saved with ID:", newAppRef.key);
                 
-                showToast('✅ Enrollment submitted successfully! Your application is pending review.', 'success');
+                // Show success alert - THIS WILL DEFINITELY SHOW
+                showSimpleAlert('✅ Enrollment submitted successfully! Your application is pending review.', 'success');
                 
                 // Reset form
                 enrollmentForm.reset();
@@ -533,7 +503,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
             } catch (error) {
                 console.error('Error saving application:', error);
-                showToast('❌ Error: ' + error.message, 'error');
+                showSimpleAlert('❌ Error: ' + error.message, 'error');
             }
         });
     }
@@ -631,7 +601,7 @@ async function loadStudentData() {
             }
         }
         
-        // Update enrollment tab
+        // Update enrollment tab if pending
         const enrollmentTab = document.getElementById('enrollmentTab');
         if (enrollmentTab && currentApplication.status === 'pending') {
             enrollmentTab.innerHTML = `

@@ -125,11 +125,12 @@
             display: block;
         }
 
-        .form-section, .enrolled-list {
+        /* Section visibility */
+        .section {
             display: none;
         }
-
-        .form-section.active, .enrolled-list.active {
+        
+        .section.active {
             display: block;
         }
 
@@ -207,12 +208,56 @@
             font-weight: bold;
             color: #28a745;
         }
+        
+        .student-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .student-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        
+        .status-enrolled {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
 
         @media (max-width: 768px) {
             .auth-container {
                 flex-direction: column;
             }
             .subjects-grid {
+                grid-template-columns: 1fr;
+            }
+            .form-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -230,7 +275,8 @@
             </div>
         </div>
         <div class="content">
-            <div id="authSection">
+            <!-- LOGIN/REGISTER SECTION -->
+            <div id="authSection" class="section active">
                 <div class="auth-container">
                     <div class="auth-card">
                         <h2><i class="fas fa-sign-in-alt"></i> Login</h2>
@@ -273,11 +319,12 @@
                 </div>
             </div>
 
-            <div id="enrollmentSection" style="display:none;">
+            <!-- ENROLLMENT FORM SECTION -->
+            <div id="enrollmentSection" class="section">
                 <div class="form-section">
                     <h2><i class="fas fa-user-plus"></i> Student Registration Form</h2>
                     <form id="enrollmentForm">
-                        <div class="form-grid" style="display:grid; grid-template-columns:repeat(2,1fr); gap:20px;">
+                        <div class="form-grid">
                             <div class="form-group">
                                 <label>Full Name *</label>
                                 <input type="text" id="fullName" required>
@@ -395,7 +442,8 @@
                 </div>
             </div>
 
-            <div id="thankYouSection" style="display:none;">
+            <!-- THANK YOU SECTION -->
+            <div id="thankYouSection" class="section">
                 <div class="thank-you">
                     <i class="fas fa-check-circle"></i>
                     <h2>Thank You for Registering!</h2>
@@ -405,7 +453,8 @@
                 </div>
             </div>
 
-            <div class="enrolled-list">
+            <!-- RECENTLY ENROLLED SECTION -->
+            <div id="recentStudentsSection" class="section">
                 <h2><i class="fas fa-users"></i> Recently Enrolled Students</h2>
                 <div id="studentList"></div>
             </div>

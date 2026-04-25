@@ -14,7 +14,6 @@ const auth = firebase.auth();
 let studentsRef = database.ref('students');
 let usersRef = database.ref('users');
 let applicationsRef = database.ref('applications');
-let subjectsRef = database.ref('subjects');
 let enrollmentsRef = database.ref('enrollments');
 let paymentsRef = database.ref('payments');
 let currentUser = null;
@@ -82,6 +81,7 @@ const STRANDS = {
 function updateYearLevels() {
     const level = document.getElementById('educationLevel').value;
     const yearSelect = document.getElementById('yearLevel');
+    if (!yearSelect) return;
     yearSelect.innerHTML = '<option value="">Select Year</option>';
     
     if (level === 'SHS') {
@@ -89,22 +89,17 @@ function updateYearLevels() {
         yearSelect.innerHTML += '<option value="12">Grade 12</option>';
     } else if (level === 'College') {
         for (let i = 1; i <= 4; i++) {
-            yearSelect.innerHTML += `<option value="${i}">${i}${getOrdinal(i)} Year</option>`;
+            let suffix = i === 1 ? "st" : (i === 2 ? "nd" : (i === 3 ? "rd" : "th"));
+            yearSelect.innerHTML += `<option value="${i}">${i}${suffix} Year</option>`;
         }
     }
-}
-
-function getOrdinal(n) {
-    if (n === 1) return "st";
-    if (n === 2) return "nd";
-    if (n === 3) return "rd";
-    return "th";
 }
 
 // Update strand/course options
 function updateStrandCourse() {
     const level = document.getElementById('educationLevel').value;
     const strandSelect = document.getElementById('strandCourse');
+    if (!strandSelect) return;
     strandSelect.innerHTML = '<option value="">Select Strand/Course</option>';
     
     const options = level === 'SHS' ? STRANDS.SHS : STRANDS.College;
@@ -131,6 +126,7 @@ function loadSubjects() {
     currentSubjects = subjects;
     
     const container = document.getElementById('subjectsContainer');
+    if (!container) return;
     container.innerHTML = '';
     
     subjects.forEach((subject, index) => {
@@ -153,15 +149,19 @@ function calculateTotalFee() {
     const subjectCount = currentSubjects.length;
     
     totalFee = config.baseFee + (subjectCount * config.perSubject);
-    document.getElementById('totalFee').innerHTML = `₱${totalFee.toLocaleString()}`;
+    const totalFeeElement = document.getElementById('totalFee');
+    if (totalFeeElement) {
+        totalFeeElement.innerHTML = `₱${totalFee.toLocaleString()}`;
+    }
     
     updatePaymentDetails();
 }
 
 // Update payment details based on method
 function updatePaymentDetails() {
-    const method = document.getElementById('paymentMethod').value;
+    const method = document.getElementById('paymentMethod') ? document.getElementById('paymentMethod').value : 'full';
     const details = document.getElementById('paymentDetails');
+    if (!details) return;
     
     if (method === 'full') {
         const discounted = totalFee * 0.9;
@@ -174,23 +174,39 @@ function updatePaymentDetails() {
     }
 }
 
-// File upload handlers
-document.getElementById('torFile').addEventListener('change', function(e) {
-    selectedTorFile = e.target.files[0];
-    document.getElementById('torFileName').innerHTML = `<i class="fas fa-file"></i> ${selectedTorFile.name}`;
-});
+// File upload handlers - FIXED with null checks
+const torFileInput = document.getElementById('torFile');
+if (torFileInput) {
+    torFileInput.addEventListener('change', function(e) {
+        selectedTorFile = e.target.files[0];
+        const torFileName = document.getElementById('torFileName');
+        if (torFileName && selectedTorFile) {
+            torFileName.innerHTML = `<i class="fas fa-file"></i> ${selectedTorFile.name}`;
+        }
+    });
+}
 
-document.getElementById('goodMoralFile').addEventListener('change', function(e) {
-    selectedGoodMoralFile = e.target.files[0];
-    document.getElementById('goodMoralFileName').innerHTML = `<i class="fas fa-file"></i> ${selectedGoodMoralFile.name}`;
-});
+const goodMoralFileInput = document.getElementById('goodMoralFile');
+if (goodMoralFileInput) {
+    goodMoralFileInput.addEventListener('change', function(e) {
+        selectedGoodMoralFile = e.target.files[0];
+        const goodMoralFileName = document.getElementById('goodMoralFileName');
+        if (goodMoralFileName && selectedGoodMoralFile) {
+            goodMoralFileName.innerHTML = `<i class="fas fa-file"></i> ${selectedGoodMoralFile.name}`;
+        }
+    });
+}
 
 // Payment method selection
-document.querySelectorAll('.payment-method').forEach(el => {
+const paymentMethods = document.querySelectorAll('.payment-method');
+paymentMethods.forEach(el => {
     el.addEventListener('click', function() {
         document.querySelectorAll('.payment-method').forEach(m => m.classList.remove('selected'));
         this.classList.add('selected');
-        document.getElementById('paymentMethod').value = this.dataset.method;
+        const paymentMethodInput = document.getElementById('paymentMethod');
+        if (paymentMethodInput) {
+            paymentMethodInput.value = this.dataset.method;
+        }
         updatePaymentDetails();
     });
 });
@@ -205,89 +221,176 @@ function fileToBase64(file) {
     });
 }
 
-// Auth state listener
+// Auth state listener - FIXED to properly show enrollment section
 auth.onAuthStateChanged(async (user) => {
+    console.log("Auth state changed:", user ? "Logged in" : "Logged out");
+    
     if (user) {
         currentUser = user;
-        document.getElementById('authSection').style.display = 'none';
-        document.getElementById('enrollmentSection').style.display = 'block';
-        document.getElementById('logoutBtn').style.display = 'block';
-        document.querySelector('.enrolled-list').classList.add('active');
+        
+        // Hide auth section
+        const authSection = document.getElementById('authSection');
+        if (authSection) authSection.style.display = 'none';
+        
+        // Show enrollment section
+        const enrollmentSection = document.getElementById('enrollmentSection');
+        if (enrollmentSection) enrollmentSection.style.display = 'block';
+        
+        // Show logout button
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) logoutBtn.style.display = 'block';
+        
+        // Show enrolled list
+        const enrolledList = document.querySelector('.enrolled-list');
+        if (enrolledList) enrolledList.classList.add('active');
+        
+        // Load students
         loadStudents();
         
-        const existingApp = await applicationsRef.orderByChild('userId').equalTo(user.uid).once('value');
-        if (existingApp.exists()) {
-            document.getElementById('thankYouSection').style.display = 'block';
-            document.getElementById('enrollmentSection').style.display = 'none';
+        // Check if user already submitted application
+        try {
+            const existingApp = await applicationsRef.orderByChild('userId').equalTo(user.uid).once('value');
+            if (existingApp.exists()) {
+                const thankYouSection = document.getElementById('thankYouSection');
+                const enrollmentSectionElem = document.getElementById('enrollmentSection');
+                if (thankYouSection) thankYouSection.style.display = 'block';
+                if (enrollmentSectionElem) enrollmentSectionElem.style.display = 'none';
+            }
+        } catch (error) {
+            console.error("Error checking existing application:", error);
         }
+        
+        // Initialize form event listeners after user is logged in
+        initializeFormListeners();
+        
     } else {
         currentUser = null;
-        document.getElementById('authSection').style.display = 'block';
-        document.getElementById('enrollmentSection').style.display = 'none';
-        document.getElementById('thankYouSection').style.display = 'none';
-        document.getElementById('logoutBtn').style.display = 'none';
+        
+        // Show auth section
+        const authSection = document.getElementById('authSection');
+        if (authSection) authSection.style.display = 'block';
+        
+        // Hide enrollment section
+        const enrollmentSection = document.getElementById('enrollmentSection');
+        if (enrollmentSection) enrollmentSection.style.display = 'none';
+        
+        // Hide thank you section
+        const thankYouSection = document.getElementById('thankYouSection');
+        if (thankYouSection) thankYouSection.style.display = 'none';
+        
+        // Hide logout button
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) logoutBtn.style.display = 'none';
     }
 });
 
-// Login
-document.getElementById('loginForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('loginEmail').value;
-    const password = document.getElementById('loginPassword').value;
+// Initialize form listeners - FIXED to ensure they work after login
+function initializeFormListeners() {
+    console.log("Initializing form listeners");
     
-    try {
-        await auth.signInWithEmailAndPassword(email, password);
-        showLoginMessage('Login successful!', 'success');
-        document.getElementById('loginForm').reset();
-    } catch (error) {
-        showLoginMessage(error.message, 'error');
-    }
-});
-
-// Register
-document.getElementById('registerForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const name = document.getElementById('regName').value;
-    const email = document.getElementById('regEmail').value;
-    const password = document.getElementById('regPassword').value;
-    const confirmPassword = document.getElementById('regConfirmPassword').value;
-    
-    if (password !== confirmPassword) {
-        showRegisterMessage('Passwords do not match!', 'error');
-        return;
+    // Education level change
+    const educationLevel = document.getElementById('educationLevel');
+    if (educationLevel) {
+        educationLevel.removeEventListener('change', handleEducationLevelChange);
+        educationLevel.addEventListener('change', handleEducationLevelChange);
     }
     
-    try {
-        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-        await usersRef.child(userCredential.user.uid).set({
-            name: name,
-            email: email,
-            createdAt: Date.now()
-        });
-        showRegisterMessage('Registration successful! You can now login.', 'success');
-        document.getElementById('registerForm').reset();
-    } catch (error) {
-        showRegisterMessage(error.message, 'error');
+    // Year level change
+    const yearLevel = document.getElementById('yearLevel');
+    if (yearLevel) {
+        yearLevel.removeEventListener('change', handleYearLevelChange);
+        yearLevel.addEventListener('change', handleYearLevelChange);
     }
-});
+}
 
-// Logout
-document.getElementById('logoutBtn').addEventListener('click', async () => {
-    await auth.signOut();
-    location.reload();
-});
-
-document.getElementById('backToHomeBtn').addEventListener('click', () => {
-    document.getElementById('thankYouSection').style.display = 'none';
-    document.getElementById('enrollmentSection').style.display = 'block';
-});
-
-// Event listeners for dynamic fields
-document.getElementById('educationLevel').addEventListener('change', () => {
+function handleEducationLevelChange() {
     updateYearLevels();
     updateStrandCourse();
-});
-document.getElementById('yearLevel').addEventListener('change', loadSubjects);
+}
+
+function handleYearLevelChange() {
+    loadSubjects();
+}
+
+// Login form - FIXED
+const loginForm = document.getElementById('loginForm');
+if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('loginEmail').value;
+        const password = document.getElementById('loginPassword').value;
+        
+        try {
+            await auth.signInWithEmailAndPassword(email, password);
+            showLoginMessage('Login successful! Redirecting...', 'success');
+            document.getElementById('loginForm').reset();
+            // Force reload to show enrollment section
+            setTimeout(() => {
+                // Auth state change will handle UI
+            }, 500);
+        } catch (error) {
+            showLoginMessage(error.message, 'error');
+        }
+    });
+}
+
+// Register form - FIXED to auto-login after registration
+const registerForm = document.getElementById('registerForm');
+if (registerForm) {
+    registerForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('regName').value;
+        const email = document.getElementById('regEmail').value;
+        const password = document.getElementById('regPassword').value;
+        const confirmPassword = document.getElementById('regConfirmPassword').value;
+        
+        if (password !== confirmPassword) {
+            showRegisterMessage('Passwords do not match!', 'error');
+            return;
+        }
+        
+        try {
+            // Create user
+            const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+            
+            // Save user data to database
+            await usersRef.child(userCredential.user.uid).set({
+                name: name,
+                email: email,
+                createdAt: Date.now()
+            });
+            
+            showRegisterMessage('Registration successful! You are now logged in.', 'success');
+            document.getElementById('registerForm').reset();
+            
+            // Auth state change will automatically show enrollment section
+            
+        } catch (error) {
+            console.error("Registration error:", error);
+            showRegisterMessage(error.message, 'error');
+        }
+    });
+}
+
+// Logout
+const logoutBtn = document.getElementById('logoutBtn');
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+        await auth.signOut();
+        location.reload();
+    });
+}
+
+// Back to home
+const backToHomeBtn = document.getElementById('backToHomeBtn');
+if (backToHomeBtn) {
+    backToHomeBtn.addEventListener('click', () => {
+        const thankYouSection = document.getElementById('thankYouSection');
+        const enrollmentSection = document.getElementById('enrollmentSection');
+        if (thankYouSection) thankYouSection.style.display = 'none';
+        if (enrollmentSection) enrollmentSection.style.display = 'block';
+    });
+}
 
 // Load students
 function loadStudents() {
@@ -305,8 +408,10 @@ function loadStudents() {
 
 function displayAllStudents(students) {
     const studentList = document.getElementById('studentList');
+    if (!studentList) return;
+    
     if (students.length === 0) {
-        studentList.innerHTML = '<p style="text-align: center; color: #999;">No students enrolled yet.</p>';
+        studentList.innerHTML = '<p style="text-align: center; color: #999;">No students enrolled yet. Be the first to register!</p>';
         return;
     }
     
@@ -315,158 +420,177 @@ function displayAllStudents(students) {
         const card = document.createElement('div');
         card.className = 'student-card';
         card.innerHTML = `
-            <h3>${student.fullName}</h3>
+            <h3>${student.fullName || 'N/A'}</h3>
             <div class="student-details">
-                <div><strong>Level:</strong> ${student.educationLevel}</div>
-                <div><strong>Grade/Year:</strong> ${student.yearLevel}</div>
-                <div><strong>Status:</strong> ${student.academicStatus || 'Regular'}</div>
+                <div><strong>Grade:</strong> ${student.grade || student.educationLevel || 'N/A'}</div>
+                <div><strong>Email:</strong> ${student.email || 'N/A'}</div>
+                <div><strong>Status:</strong> ${student.status || 'Pending'}</div>
             </div>
-            <div class="status-badge ${student.status === 'Approved' ? 'status-enrolled' : 'status-pending'}">Status: ${student.status || 'Pending'}</div>
+            <div class="status-badge ${student.status === 'Approved' ? 'status-enrolled' : 'status-pending'}">Status: ${student.status || 'Pending Review'}</div>
         `;
         studentList.appendChild(card);
     });
 }
 
 // Handle enrollment form submission
-document.getElementById('enrollmentForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    if (!currentUser) {
-        showMessage('Please login first', 'error');
-        return;
-    }
-    
-    // Get selected subjects
-    const selectedSubjects = [];
-    currentSubjects.forEach((subject, index) => {
-        const checkbox = document.getElementById(`subj_${index}`);
-        if (checkbox && checkbox.checked) {
-            selectedSubjects.push(subject);
+const enrollmentForm = document.getElementById('enrollmentForm');
+if (enrollmentForm) {
+    enrollmentForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        if (!currentUser) {
+            showMessage('Please login first', 'error');
+            return;
+        }
+        
+        // Get selected subjects
+        const selectedSubjects = [];
+        currentSubjects.forEach((subject, index) => {
+            const checkbox = document.getElementById(`subj_${index}`);
+            if (checkbox && checkbox.checked) {
+                selectedSubjects.push(subject);
+            }
+        });
+        
+        let torBase64 = null;
+        let goodMoralBase64 = null;
+        
+        if (selectedTorFile) {
+            torBase64 = await fileToBase64(selectedTorFile);
+        }
+        if (selectedGoodMoralFile) {
+            goodMoralBase64 = await fileToBase64(selectedGoodMoralFile);
+        }
+        
+        const paymentMethodInput = document.getElementById('paymentMethod');
+        const paymentMethod = paymentMethodInput ? paymentMethodInput.value : 'full';
+        let amountDue = totalFee;
+        let paymentTerms = {};
+        
+        if (paymentMethod === 'full') {
+            amountDue = totalFee * 0.9;
+            paymentTerms = { type: 'full', discount: 10, total: amountDue };
+        } else if (paymentMethod === 'installment') {
+            const perPayment = Math.ceil(totalFee / 3);
+            amountDue = perPayment;
+            paymentTerms = { type: 'installment', payments: 3, perPayment: perPayment, total: totalFee };
+        } else {
+            paymentTerms = { type: 'later', total: totalFee, dueDate: 'End of Semester' };
+        }
+        
+        const applicationData = {
+            userId: currentUser.uid,
+            fullName: document.getElementById('fullName').value.trim(),
+            dob: document.getElementById('dob').value,
+            gender: document.getElementById('gender').value,
+            email: document.getElementById('email').value.trim(),
+            phone: document.getElementById('phone').value.trim(),
+            educationLevel: document.getElementById('educationLevel').value,
+            yearLevel: document.getElementById('yearLevel').value,
+            strandCourse: document.getElementById('strandCourse').value,
+            address: document.getElementById('address').value.trim(),
+            parentName: document.getElementById('parentName').value.trim(),
+            parentPhone: document.getElementById('parentPhone').value.trim(),
+            previousSchool: document.getElementById('previousSchool').value,
+            studentType: document.getElementById('studentType').value,
+            selectedSubjects: selectedSubjects,
+            torFile: torBase64,
+            goodMoralFile: goodMoralBase64,
+            paymentMethod: paymentMethod,
+            paymentTerms: paymentTerms,
+            totalFee: totalFee,
+            enrollmentDate: Date.now(),
+            status: 'pending',
+            applicationStatus: 'Submitted',
+            academicStatus: 'Regular'
+        };
+        
+        // Validate
+        if (!applicationData.fullName || !applicationData.email || !applicationData.phone) {
+            showMessage('Please fill in all required fields', 'error');
+            return;
+        }
+        
+        try {
+            const newAppRef = applicationsRef.push();
+            await newAppRef.set(applicationData);
+            
+            // Save to students for display
+            const studentData = {
+                fullName: applicationData.fullName,
+                email: applicationData.email,
+                grade: applicationData.educationLevel + " " + applicationData.yearLevel,
+                enrollmentDate: applicationData.enrollmentDate,
+                status: 'pending'
+            };
+            await studentsRef.push().set(studentData);
+            
+            // Reset form
+            enrollmentForm.reset();
+            const torFileName = document.getElementById('torFileName');
+            const goodMoralFileName = document.getElementById('goodMoralFileName');
+            if (torFileName) torFileName.innerHTML = '';
+            if (goodMoralFileName) goodMoralFileName.innerHTML = '';
+            selectedTorFile = null;
+            selectedGoodMoralFile = null;
+            
+            // Show thank you page
+            const enrollmentSection = document.getElementById('enrollmentSection');
+            const thankYouSection = document.getElementById('thankYouSection');
+            if (enrollmentSection) enrollmentSection.style.display = 'none';
+            if (thankYouSection) thankYouSection.style.display = 'block';
+            
+            showMessage('✅ Enrollment submitted successfully!', 'success');
+            
+        } catch (error) {
+            console.error('Error saving application:', error);
+            showMessage('❌ Error submitting application: ' + error.message, 'error');
         }
     });
-    
-    let torBase64 = null;
-    let goodMoralBase64 = null;
-    
-    if (selectedTorFile) {
-        torBase64 = await fileToBase64(selectedTorFile);
-    }
-    if (selectedGoodMoralFile) {
-        goodMoralBase64 = await fileToBase64(selectedGoodMoralFile);
-    }
-    
-    const paymentMethod = document.getElementById('paymentMethod').value;
-    let amountDue = totalFee;
-    let paymentTerms = {};
-    
-    if (paymentMethod === 'full') {
-        amountDue = totalFee * 0.9;
-        paymentTerms = { type: 'full', discount: 10, total: amountDue };
-    } else if (paymentMethod === 'installment') {
-        const perPayment = Math.ceil(totalFee / 3);
-        amountDue = perPayment;
-        paymentTerms = { type: 'installment', payments: 3, perPayment: perPayment, total: totalFee };
-    } else {
-        paymentTerms = { type: 'later', total: totalFee, dueDate: 'End of Semester' };
-    }
-    
-    const applicationData = {
-        userId: currentUser.uid,
-        fullName: document.getElementById('fullName').value.trim(),
-        dob: document.getElementById('dob').value,
-        gender: document.getElementById('gender').value,
-        email: document.getElementById('email').value.trim(),
-        phone: document.getElementById('phone').value.trim(),
-        educationLevel: document.getElementById('educationLevel').value,
-        yearLevel: document.getElementById('yearLevel').value,
-        strandCourse: document.getElementById('strandCourse').value,
-        address: document.getElementById('address').value.trim(),
-        parentName: document.getElementById('parentName').value.trim(),
-        parentPhone: document.getElementById('parentPhone').value.trim(),
-        previousSchool: document.getElementById('previousSchool').value,
-        studentType: document.getElementById('studentType').value,
-        selectedSubjects: selectedSubjects,
-        torFile: torBase64,
-        goodMoralFile: goodMoralBase64,
-        paymentMethod: paymentMethod,
-        paymentTerms: paymentTerms,
-        totalFee: totalFee,
-        enrollmentDate: Date.now(),
-        status: 'pending',
-        applicationStatus: 'Submitted',
-        academicStatus: 'Regular'
-    };
-    
-    try {
-        const newAppRef = applicationsRef.push();
-        await newAppRef.set(applicationData);
-        
-        // Save enrollment record
-        const enrollmentRef = enrollmentsRef.push();
-        await enrollmentRef.set({
-            userId: currentUser.uid,
-            applicationId: newAppRef.key,
-            semester: 'Trimester 1',
-            schoolYear: '2025-2026',
-            subjects: selectedSubjects,
-            paymentMethod: paymentMethod,
-            amountPaid: 0,
-            balance: amountDue,
-            enrollmentDate: Date.now()
-        });
-        
-        // Save payment record
-        const paymentRef = paymentsRef.push();
-        await paymentRef.set({
-            userId: currentUser.uid,
-            enrollmentId: enrollmentRef.key,
-            amount: amountDue,
-            method: paymentMethod,
-            status: paymentMethod === 'later' ? 'pending' : 'unpaid',
-            dueDate: paymentMethod === 'installment' ? 'Per Trimester' : (paymentMethod === 'later' ? 'End of Semester' : 'Immediate'),
-            createdAt: Date.now()
-        });
-        
-        document.getElementById('enrollmentForm').reset();
-        document.getElementById('torFileName').innerHTML = '';
-        document.getElementById('goodMoralFileName').innerHTML = '';
-        selectedTorFile = null;
-        selectedGoodMoralFile = null;
-        
-        document.getElementById('enrollmentSection').style.display = 'none';
-        document.getElementById('thankYouSection').style.display = 'block';
-        
-        showMessage('✅ Enrollment submitted successfully!', 'success');
-        
-    } catch (error) {
-        console.error('Error:', error);
-        showMessage('❌ Error submitting application: ' + error.message, 'error');
-    }
-});
+}
 
 function showMessage(msg, type) {
     const messageDiv = document.getElementById('message');
-    messageDiv.textContent = msg;
-    messageDiv.className = `message ${type}`;
-    setTimeout(() => {
-        messageDiv.className = 'message';
-    }, 5000);
+    if (messageDiv) {
+        messageDiv.textContent = msg;
+        messageDiv.className = `message ${type}`;
+        setTimeout(() => {
+            messageDiv.className = 'message';
+        }, 5000);
+    }
 }
 
 function showLoginMessage(msg, type) {
     const div = document.getElementById('loginMessage');
-    div.textContent = msg;
-    div.className = `message ${type}`;
-    setTimeout(() => div.className = 'message', 5000);
+    if (div) {
+        div.textContent = msg;
+        div.className = `message ${type}`;
+        setTimeout(() => div.className = 'message', 5000);
+    }
 }
 
 function showRegisterMessage(msg, type) {
     const div = document.getElementById('registerMessage');
-    div.textContent = msg;
-    div.className = `message ${type}`;
-    setTimeout(() => div.className = 'message', 5000);
+    if (div) {
+        div.textContent = msg;
+        div.className = `message ${type}`;
+        setTimeout(() => div.className = 'message', 5000);
+    }
 }
 
-// Initialize
-updateYearLevels();
-updateStrandCourse();
+// Initialize UI elements on page load
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("DOM fully loaded");
+    updateYearLevels();
+    updateStrandCourse();
+    
+    // Initialize payment method if elements exist
+    const firstPaymentMethod = document.querySelector('.payment-method');
+    if (firstPaymentMethod) {
+        firstPaymentMethod.classList.add('selected');
+        const paymentMethodInput = document.getElementById('paymentMethod');
+        if (paymentMethodInput) {
+            paymentMethodInput.value = firstPaymentMethod.dataset.method;
+        }
+    }
+});

@@ -125,7 +125,6 @@
             display: block;
         }
 
-        /* Section visibility */
         .section {
             display: none;
         }
@@ -209,45 +208,39 @@
             color: #28a745;
         }
         
-        .student-card {
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
-        }
-        
-        .student-details {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-            font-size: 14px;
-            color: #666;
-        }
-        
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            margin-top: 10px;
-        }
-        
-        .status-enrolled {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .status-pending {
-            background: #fff3cd;
-            color: #856404;
-        }
-        
         .form-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 20px;
+        }
+
+        .dashboard-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        
+        .dashboard-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+        
+        .grade-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .grade-pass {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .grade-fail {
+            color: #dc3545;
+            font-weight: bold;
         }
 
         @media (max-width: 768px) {
@@ -453,10 +446,9 @@
                 </div>
             </div>
 
-            <!-- RECENTLY ENROLLED SECTION -->
-            <div id="recentStudentsSection" class="section">
-                <h2><i class="fas fa-users"></i> Recently Enrolled Students</h2>
-                <div id="studentList"></div>
+            <!-- STUDENT DASHBOARD SECTION (for approved students) -->
+            <div id="dashboardSection" class="section">
+                <div id="studentDashboard"></div>
             </div>
         </div>
     </div>

@@ -2,6 +2,7 @@
 const firebaseConfig = {
   apiKey: "AIzaSyDhE0CtfujSQoTjVTD7uNJXrEFaNyp4hzQ",
   authDomain: "school-enrollment-system-356e2.firebaseapp.com",
+  databaseURL: "https://school-enrollment-system-356e2-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "school-enrollment-system-356e2",
   storageBucket: "school-enrollment-system-356e2.firebasestorage.app",
   messagingSenderId: "445983385148",
@@ -77,8 +78,56 @@ const STRANDS = {
     College: ["BSIT", "BSCS", "BSBA", "BSEd", "BSN", "BSA"]
 };
 
-// Custom Toast Notification System
+// Add toast styles to document
+const toastStyles = document.createElement('style');
+toastStyles.textContent = `
+    @keyframes toastSlideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes toastSlideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+    }
+    .custom-toast {
+        position: fixed !important;
+        top: 20px !important;
+        right: 20px !important;
+        z-index: 999999 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 15px !important;
+        min-width: 300px !important;
+        max-width: 450px !important;
+        padding: 15px 20px !important;
+        border-radius: 10px !important;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3) !important;
+        font-family: 'Segoe UI', sans-serif !important;
+        font-size: 14px !important;
+        animation: toastSlideIn 0.3s ease !important;
+        cursor: pointer !important;
+    }
+    .toast-success { background: #28a745 !important; color: white !important; }
+    .toast-error { background: #dc3545 !important; color: white !important; }
+    .toast-info { background: #17a2b8 !important; color: white !important; }
+    .toast-close-btn {
+        background: none !important;
+        border: none !important;
+        color: white !important;
+        font-size: 20px !important;
+        cursor: pointer !important;
+        padding: 0 5px !important;
+        opacity: 0.8 !important;
+    }
+    .toast-close-btn:hover { opacity: 1 !important; }
+`;
+document.head.appendChild(toastStyles);
+
+// Custom Toast Notification Function
 function showToast(message, type = 'success') {
+    console.log("Showing toast:", message, type);
+    
     // Remove existing toast
     const existingToast = document.querySelector('.custom-toast');
     if (existingToast) existingToast.remove();
@@ -87,80 +136,41 @@ function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.className = `custom-toast toast-${type}`;
     toast.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <i class="fas ${type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle')}" style="font-size: 24px;"></i>
+        <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle')}" style="font-size: 20px;"></i>
             <span>${message}</span>
         </div>
-        <button class="toast-close" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer;">&times;</button>
+        <button class="toast-close-btn">&times;</button>
     `;
-    
-    // Add styles
-    toast.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: ${type === 'success' ? '#28a745' : (type === 'error' ? '#dc3545' : '#17a2b8')};
-        color: white;
-        padding: 15px 20px;
-        border-radius: 10px;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 15px;
-        min-width: 300px;
-        max-width: 450px;
-        animation: slideIn 0.3s ease;
-        font-family: 'Segoe UI', sans-serif;
-    `;
-    
-    // Add animation styles if not present
-    if (!document.querySelector('#toast-styles')) {
-        const style = document.createElement('style');
-        style.id = 'toast-styles';
-        style.textContent = `
-            @keyframes slideIn {
-                from { transform: translateX(100%); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
-            }
-            @keyframes slideOut {
-                from { transform: translateX(0); opacity: 1; }
-                to { transform: translateX(100%); opacity: 0; }
-            }
-            .custom-toast {
-                cursor: pointer;
-            }
-        `;
-        document.head.appendChild(style);
-    }
     
     document.body.appendChild(toast);
     
     // Close button functionality
-    toast.querySelector('.toast-close').onclick = () => {
-        toast.style.animation = 'slideOut 0.3s ease';
+    const closeBtn = toast.querySelector('.toast-close-btn');
+    closeBtn.onclick = (e) => {
+        e.stopPropagation();
+        toast.style.animation = 'toastSlideOut 0.3s ease';
         setTimeout(() => toast.remove(), 300);
     };
     
-    // Auto close after 5 seconds
-    setTimeout(() => {
-        if (toast.parentNode) {
-            toast.style.animation = 'slideOut 0.3s ease';
-            setTimeout(() => toast.remove(), 300);
-        }
-    }, 5000);
-    
     // Click to close
     toast.onclick = (e) => {
-        if (e.target !== toast.querySelector('.toast-close')) {
-            toast.style.animation = 'slideOut 0.3s ease';
+        if (e.target !== closeBtn) {
+            toast.style.animation = 'toastSlideOut 0.3s ease';
             setTimeout(() => toast.remove(), 300);
         }
     };
+    
+    // Auto close after 4 seconds
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.style.animation = 'toastSlideOut 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, 4000);
 }
 
-// Wait for DOM to be fully loaded before setting up event listeners
+// Wait for DOM to be fully loaded
 document.addEventListener('DOMContentLoaded', function() {
     console.log("DOM fully loaded - setting up event listeners");
     
@@ -426,7 +436,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // ENROLLMENT FORM SUBMISSION - FIXED with proper message div
+    // ENROLLMENT FORM SUBMISSION
     const enrollmentForm = document.getElementById('enrollmentForm');
     if (enrollmentForm) {
         enrollmentForm.addEventListener('submit', async (e) => {
@@ -507,13 +517,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 await newAppRef.set(applicationData);
                 console.log("Application saved with ID:", newAppRef.key);
                 
-                // Show success toast
                 showToast('✅ Enrollment submitted successfully! Your application is pending review.', 'success');
                 
                 // Reset form
                 enrollmentForm.reset();
                 
-                // Reload student data to show pending status
+                // Reload student data
                 await loadStudentData();
                 
                 // Switch to dashboard tab
@@ -592,13 +601,10 @@ async function loadStudentData() {
             } else if (currentApplication.status === 'pending') {
                 profileStatus.innerText = 'PENDING REVIEW';
                 profileStatus.className = 'profile-status status-pending';
-            } else {
-                profileStatus.innerText = currentApplication.status.toUpperCase();
-                profileStatus.className = 'profile-status status-pending';
             }
         }
         
-        // Update dashboard based on status - KEEP THE MESSAGE DIV INTACT
+        // Update dashboard
         const dashboardInfo = document.getElementById('dashboardInfo');
         if (dashboardInfo) {
             if (currentApplication.status === 'approved') {
@@ -609,7 +615,6 @@ async function loadStudentData() {
                         <p><strong>Year Level:</strong> ${currentApplication.yearLevel || 'Not set'}</p>
                         <p><strong>Strand/Course:</strong> ${currentApplication.strandCourse || 'Not set'}</p>
                         <p><strong>Enrollment Date:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
-                        <p style="color: #28a745; margin-top: 10px;">You are now officially enrolled! Check your grades tab for academic performance.</p>
                     </div>
                 `;
             } else if (currentApplication.status === 'pending') {
@@ -626,35 +631,20 @@ async function loadStudentData() {
             }
         }
         
-        // Update enrollment tab - show message instead of form, BUT PRESERVE MESSAGE DIV
+        // Update enrollment tab
         const enrollmentTab = document.getElementById('enrollmentTab');
-        if (enrollmentTab) {
-            if (currentApplication.status === 'pending') {
-                enrollmentTab.innerHTML = `
-                    <div class="card">
-                        <h3><i class="fas fa-clock"></i> Application Pending</h3>
-                        <div class="enrollment-summary" style="background: #fff3cd; text-align: center; padding: 40px; border-radius: 10px;">
-                            <i class="fas fa-hourglass-half" style="font-size: 48px; color: #ffc107; margin-bottom: 20px;"></i>
-                            <h3>Your application is being reviewed</h3>
-                            <p>You have already submitted an enrollment application. Please wait for admin approval.</p>
-                            <p><strong>Application Status:</strong> Pending Review</p>
-                            <p><strong>Submitted on:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
-                        </div>
+        if (enrollmentTab && currentApplication.status === 'pending') {
+            enrollmentTab.innerHTML = `
+                <div class="card">
+                    <h3><i class="fas fa-clock"></i> Application Pending</h3>
+                    <div class="enrollment-summary" style="background: #fff3cd; text-align: center; padding: 40px; border-radius: 10px;">
+                        <i class="fas fa-hourglass-half" style="font-size: 48px; color: #ffc107; margin-bottom: 20px;"></i>
+                        <h3>Your application is being reviewed</h3>
+                        <p>You have already submitted an enrollment application. Please wait for admin approval.</p>
+                        <p><strong>Submitted on:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
                     </div>
-                `;
-            } else if (currentApplication.status === 'approved') {
-                enrollmentTab.innerHTML = `
-                    <div class="card">
-                        <h3><i class="fas fa-check-circle"></i> Enrollment Complete</h3>
-                        <div class="enrollment-summary" style="background: #d4edda; text-align: center; padding: 40px; border-radius: 10px;">
-                            <i class="fas fa-check-circle" style="font-size: 48px; color: #28a745; margin-bottom: 20px;"></i>
-                            <h3>You are officially enrolled!</h3>
-                            <p>Your application has been approved. You can now view your grades and documents.</p>
-                            <p><strong>Academic Status:</strong> Regular</p>
-                        </div>
-                    </div>
-                `;
-            }
+                </div>
+            `;
         }
         
         // Load grades if approved
@@ -668,17 +658,13 @@ async function loadStudentData() {
         // Update document status
         const torStatus = document.getElementById('torStatus');
         const moralStatus = document.getElementById('moralStatus');
-        if (torStatus) {
-            if (currentApplication.torFile) {
-                torStatus.innerText = 'Uploaded';
-                torStatus.className = 'document-status doc-uploaded';
-            }
+        if (torStatus && currentApplication.torFile) {
+            torStatus.innerText = 'Uploaded';
+            torStatus.className = 'document-status doc-uploaded';
         }
-        if (moralStatus) {
-            if (currentApplication.goodMoralFile) {
-                moralStatus.innerText = 'Uploaded';
-                moralStatus.className = 'document-status doc-uploaded';
-            }
+        if (moralStatus && currentApplication.goodMoralFile) {
+            moralStatus.innerText = 'Uploaded';
+            moralStatus.className = 'document-status doc-uploaded';
         }
         
         // Update payment info
@@ -687,7 +673,7 @@ async function loadStudentData() {
             paymentInfo.innerHTML = `
                 <div class="enrollment-summary" style="padding: 20px; border-radius: 10px; background: #f8f9fa;">
                     <p><strong>Total Tuition Fee:</strong> ₱${(currentApplication.totalFee || 0).toLocaleString()}</p>
-                    <p><strong>Payment Method:</strong> ${currentApplication.paymentMethod === 'full' ? 'Full Payment (10% discount)' : (currentApplication.paymentMethod === 'installment' ? 'Installment (3 payments)' : 'School Pay Later')}</p>
+                    <p><strong>Payment Method:</strong> ${currentApplication.paymentMethod === 'full' ? 'Full Payment' : (currentApplication.paymentMethod === 'installment' ? 'Installment' : 'School Pay Later')}</p>
                     <p><strong>Payment Status:</strong> Pending</p>
                 </div>
             `;
@@ -698,27 +684,9 @@ async function loadStudentData() {
         currentApplication = null;
         const profileLevel = document.getElementById('profileLevel');
         const dashboardInfo = document.getElementById('dashboardInfo');
-        const gradesList = document.getElementById('gradesList');
         
         if (profileLevel) profileLevel.innerText = 'Not Enrolled';
         if (dashboardInfo) dashboardInfo.innerHTML = '<p>You haven\'t submitted an enrollment application yet. Please go to the Enrollment tab to register.</p>';
-        if (gradesList) gradesList.innerHTML = '<p>Complete enrollment first to see grades.</p>';
-        
-        // Make sure enrollment form is visible in the tab
-        const enrollmentTab = document.getElementById('enrollmentTab');
-        if (enrollmentTab) {
-            // Check if we need to restore the form
-            const existingForm = enrollmentTab.querySelector('#enrollmentForm');
-            if (!existingForm) {
-                // Form was replaced, but we need to keep the original HTML
-                // The original HTML already has the form, so no action needed
-                console.log("Enrollment form should be visible");
-            }
-        }
-        
-        // Auto-switch to enrollment tab
-        const enrollmentNav = document.querySelector('.nav-item[data-tab="enrollment"]');
-        if (enrollmentNav) enrollmentNav.click();
     }
 }
 
@@ -752,31 +720,13 @@ async function loadGrades() {
         if (gradesList) gradesList.innerHTML = gradesHtml;
         if (gradeSummary) {
             gradeSummary.innerHTML = `
-                <div class="enrollment-summary" style="margin-top:20px; padding: 20px; border-radius: 10px; background: #f8f9fa;">
+                <div style="margin-top:20px; padding: 20px; border-radius: 10px; background: #f8f9fa;">
                     <p><strong>Summary:</strong> Passed: ${passed} | Failed: ${failed}</p>
                     <p><strong>Academic Status:</strong> ${failed > 0 ? 'IRREGULAR' : 'REGULAR'}</p>
-                    <p><strong>GPA:</strong> ${calculateGPA(studentGrades)}</p>
                 </div>
             `;
         }
     } else {
-        if (gradesList) gradesList.innerHTML = '<p>No grades available yet. Check back after approval.</p>';
+        if (gradesList) gradesList.innerHTML = '<p>No grades available yet.</p>';
     }
-}
-
-function calculateGPA(grades) {
-    if (grades.length === 0) return 'N/A';
-    let total = 0;
-    grades.forEach(g => {
-        const grade = g.letterGrade;
-        if (grade === 'A' || grade === '1.0') total += 4.0;
-        else if (grade === 'B' || grade === '1.25') total += 3.5;
-        else if (grade === 'C' || grade === '1.5') total += 3.0;
-        else if (grade === 'D' || grade === '1.75') total += 2.5;
-        else if (grade === '2.0') total += 2.0;
-        else if (grade === '2.25') total += 1.5;
-        else if (grade === '2.5' || grade === '3.0') total += 1.0;
-        else total += 0;
-    });
-    return (total / grades.length).toFixed(2);
 }

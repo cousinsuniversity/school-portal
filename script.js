@@ -14,8 +14,6 @@ const auth = firebase.auth();
 let studentsRef = database.ref('students');
 let usersRef = database.ref('users');
 let applicationsRef = database.ref('applications');
-let enrollmentsRef = database.ref('enrollments');
-let paymentsRef = database.ref('payments');
 let currentUser = null;
 let selectedTorFile = null;
 let selectedGoodMoralFile = null;
@@ -71,12 +69,49 @@ const SUBJECTS = {
     ]
 };
 
-// Education levels and strands
 const STRANDS = {
     SHS: ["ABM", "STEM", "HUMSS", "GAS", "TVL"],
     College: ["BSIT", "BSCS", "BSBA", "BSEd", "BSN", "BSA"]
 };
 
+// Section management functions
+function showSection(sectionId) {
+    const sections = ['authSection', 'enrollmentSection', 'thankYouSection', 'recentStudentsSection'];
+    sections.forEach(id => {
+        const section = document.getElementById(id);
+        if (section) {
+            if (id === sectionId) {
+                section.classList.add('active');
+                section.style.display = 'block';
+            } else {
+                section.classList.remove('active');
+                section.style.display = 'none';
+            }
+        }
+    });
+}
+
+function showEnrollmentForm() {
+    showSection('enrollmentSection');
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.style.display = 'block';
+}
+
+function showAuthScreen() {
+    showSection('authSection');
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.style.display = 'none';
+}
+
+function showThankYou() {
+    showSection('thankYouSection');
+}
+
+function showRecentStudents() {
+    showSection('recentStudentsSection');
+}
+
+// Year level options
 function updateYearLevels() {
     const level = document.getElementById('educationLevel');
     if (!level) return;
@@ -219,118 +254,115 @@ function fileToBase64(file) {
     });
 }
 
-// CRITICAL FIX: Force show enrollment section by directly manipulating inline styles
-function forceShowEnrollmentSection() {
-    // Get the enrollment section element
-    const enrollmentSection = document.getElementById('enrollmentSection');
-    if (enrollmentSection) {
-        enrollmentSection.style.display = 'block';
-        enrollmentSection.style.setProperty('display', 'block', 'important');
-    }
-    
-    // Hide auth section
-    const authSection = document.getElementById('authSection');
-    if (authSection) {
-        authSection.style.display = 'none';
-        authSection.style.setProperty('display', 'none', 'important');
-    }
-    
-    // Show logout button
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.style.display = 'block';
-    }
-    
-    // Make sure enrolled list is visible but not blocking
-    const enrolledList = document.querySelector('.enrolled-list');
-    if (enrolledList) {
-        enrolledList.classList.add('active');
-        enrolledList.style.display = 'block';
-    }
-    
-    // Hide thank you section if visible
-    const thankYouSection = document.getElementById('thankYouSection');
-    if (thankYouSection) {
-        thankYouSection.style.display = 'none';
-    }
-    
-    console.log("Enrollment section forced to display");
-}
-
-// Auth state listener - FIXED with force display
+// AUTH STATE LISTENER - MAIN LOGIC
 auth.onAuthStateChanged(async (user) => {
-    console.log("Auth state changed:", user ? "Logged in" : "Logged out");
+    console.log("Auth state changed:", user ? "Logged in: " + user.email : "Logged out");
     
     if (user) {
         currentUser = user;
         
-        // FORCE show enrollment section - this overrides any CSS
-        forceShowEnrollmentSection();
+        // Check if user has submitted an application
+        const userApp = await applicationsRef.orderByChild('userId').equalTo(user.uid).once('value');
+        const hasApplication = userApp.exists();
+        let applicationStatus = null;
         
-        // Load students
-        loadStudents();
-        
-        // Setup form listeners
-        const educationLevel = document.getElementById('educationLevel');
-        if (educationLevel) {
-            educationLevel.addEventListener('change', function() {
-                updateYearLevels();
-                updateStrandCourse();
+        if (hasApplication) {
+            userApp.forEach(snap => {
+                applicationStatus = snap.val().status;
             });
         }
         
-        const yearLevel = document.getElementById('yearLevel');
-        if (yearLevel) {
-            yearLevel.addEventListener('change', function() {
-                loadSubjects();
-            });
-        }
-        
-        // Initialize dropdowns
-        updateYearLevels();
-        updateStrandCourse();
-        
-        // Check if user already submitted application
-        try {
-            const existingApp = await applicationsRef.orderByChild('userId').equalTo(user.uid).once('value');
-            if (existingApp.exists()) {
-                const thankYouSection = document.getElementById('thankYouSection');
-                const enrollmentSectionElem = document.getElementById('enrollmentSection');
-                if (thankYouSection) thankYouSection.style.display = 'block';
-                if (enrollmentSectionElem) enrollmentSectionElem.style.display = 'none';
+        // Show appropriate screen based on application status
+        if (!hasApplication) {
+            // No application yet - show enrollment form
+            console.log("No application found - showing enrollment form");
+            showEnrollmentForm();
+            // Initialize form
+            updateYearLevels();
+            updateStrandCourse();
+            
+            // Add event listeners
+            const educationLevel = document.getElementById('educationLevel');
+            if (educationLevel) {
+                educationLevel.onchange = function() {
+                    updateYearLevels();
+                    updateStrandCourse();
+                };
             }
-        } catch (error) {
-            console.error("Error checking existing application:", error);
+            const yearLevelSelect = document.getElementById('yearLevel');
+            if (yearLevelSelect) {
+                yearLevelSelect.onchange = function() {
+                    loadSubjects();
+                };
+            }
+            
+            // Show recent students in background
+            loadStudents();
+            showRecentStudents();
+            
+        } else if (applicationStatus === 'pending') {
+            // Application pending - show thank you
+            console.log("Application pending - showing thank you");
+            showThankYou();
+            showRecentStudents();
+            
+        } else if (applicationStatus === 'approved') {
+            // Application approved - show grades and subjects
+            console.log("Application approved - showing student dashboard");
+            showStudentDashboard(user.uid);
         }
+        
+        // Show logout button
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) logoutBtn.style.display = 'block';
         
     } else {
         currentUser = null;
-        
-        // Show auth section
-        const authSection = document.getElementById('authSection');
-        if (authSection) {
-            authSection.style.display = 'block';
-        }
-        
-        // Hide enrollment section
-        const enrollmentSection = document.getElementById('enrollmentSection');
-        if (enrollmentSection) {
-            enrollmentSection.style.display = 'none';
-        }
-        
-        // Hide thank you section
-        const thankYouSection = document.getElementById('thankYouSection');
-        if (thankYouSection) {
-            thankYouSection.style.display = 'none';
-        }
-        
-        // Hide logout button
+        showAuthScreen();
         const logoutBtn = document.getElementById('logoutBtn');
-        if (logoutBtn) {
-            logoutBtn.style.display = 'none';
-        }
+        if (logoutBtn) logoutBtn.style.display = 'none';
     }
 });
+
+// Student dashboard for approved students
+async function showStudentDashboard(userId) {
+    showSection('recentStudentsSection');
+    
+    // Get student data
+    const studentData = await applicationsRef.orderByChild('userId').equalTo(userId).once('value');
+    let student = null;
+    studentData.forEach(snap => {
+        student = snap.val();
+    });
+    
+    if (student) {
+        const studentList = document.getElementById('studentList');
+        if (studentList) {
+            studentList.innerHTML = `
+                <div class="student-card">
+                    <h3>Welcome, ${student.fullName}!</h3>
+                    <div class="student-details">
+                        <div><strong>Status:</strong> <span style="color:green;">APPROVED</span></div>
+                        <div><strong>Education Level:</strong> ${student.educationLevel}</div>
+                        <div><strong>Year Level:</strong> ${student.yearLevel}</div>
+                        <div><strong>Strand/Course:</strong> ${student.strandCourse}</div>
+                        <div><strong>Enrollment Date:</strong> ${new Date(student.enrollmentDate).toLocaleDateString()}</div>
+                    </div>
+                </div>
+                <h3>Your Subjects</h3>
+                <div class="subjects-grid">
+                    ${student.selectedSubjects.map(subj => `
+                        <div class="subject-item">
+                            <strong>${subj.name}</strong> (${subj.units} units)
+                        </div>
+                    `).join('')}
+                </div>
+                <h3>Your Grades (Coming Soon)</h3>
+                <p>Your grades will be available here once posted by the admin.</p>
+            `;
+        }
+    }
+}
 
 // Login form
 const loginForm = document.getElementById('loginForm');
@@ -344,19 +376,13 @@ if (loginForm) {
             await auth.signInWithEmailAndPassword(email, password);
             showLoginMessage('Login successful!', 'success');
             document.getElementById('loginForm').reset();
-            // Force show enrollment after login
-            setTimeout(() => {
-                if (auth.currentUser) {
-                    forceShowEnrollmentSection();
-                }
-            }, 500);
         } catch (error) {
             showLoginMessage(error.message, 'error');
         }
     });
 }
 
-// Register form - FIXED
+// Register form
 const registerForm = document.getElementById('registerForm');
 if (registerForm) {
     registerForm.addEventListener('submit', async (e) => {
@@ -373,25 +399,15 @@ if (registerForm) {
         
         try {
             showRegisterMessage('Creating account...', 'success');
-            
             const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-            
             await usersRef.child(userCredential.user.uid).set({
                 name: name,
                 email: email,
                 createdAt: Date.now()
             });
-            
-            showRegisterMessage('Registration successful! Loading enrollment form...', 'success');
+            showRegisterMessage('Registration successful! Redirecting to enrollment form...', 'success');
             document.getElementById('registerForm').reset();
-            
-            // FORCE show enrollment section after registration
-            setTimeout(() => {
-                if (auth.currentUser) {
-                    forceShowEnrollmentSection();
-                }
-            }, 1000);
-            
+            // Auth state change will handle showing enrollment form
         } catch (error) {
             console.error("Registration error:", error);
             showRegisterMessage(error.message, 'error');
@@ -404,21 +420,19 @@ const logoutBtn = document.getElementById('logoutBtn');
 if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
         await auth.signOut();
+        location.reload();
     });
 }
 
-// Back to home
+// Back to home button
 const backToHomeBtn = document.getElementById('backToHomeBtn');
 if (backToHomeBtn) {
     backToHomeBtn.addEventListener('click', () => {
-        const thankYouSection = document.getElementById('thankYouSection');
-        const enrollmentSection = document.getElementById('enrollmentSection');
-        if (thankYouSection) thankYouSection.style.display = 'none';
-        if (enrollmentSection) enrollmentSection.style.display = 'block';
+        showEnrollmentForm();
     });
 }
 
-// Load students
+// Load students for display
 function loadStudents() {
     studentsRef.once('value', (snapshot) => {
         const students = [];
@@ -428,11 +442,11 @@ function loadStudents() {
             students.push(student);
         });
         students.sort((a, b) => b.enrollmentDate - a.enrollmentDate);
-        displayAllStudents(students);
+        displayRecentStudents(students);
     });
 }
 
-function displayAllStudents(students) {
+function displayRecentStudents(students) {
     const studentList = document.getElementById('studentList');
     if (!studentList) return;
     
@@ -441,18 +455,21 @@ function displayAllStudents(students) {
         return;
     }
     
-    studentList.innerHTML = '';
-    students.slice(0, 10).forEach(student => {
+    // Check if we're showing dashboard or just recent students
+    if (studentList.innerHTML.includes('Welcome')) {
+        return; // Don't override dashboard
+    }
+    
+    studentList.innerHTML = '<h3>Recently Enrolled Students</h3>';
+    students.slice(0, 5).forEach(student => {
         const card = document.createElement('div');
         card.className = 'student-card';
         card.innerHTML = `
             <h3>${student.fullName || 'N/A'}</h3>
             <div class="student-details">
-                <div><strong>Grade:</strong> ${student.grade || student.educationLevel || 'N/A'}</div>
-                <div><strong>Email:</strong> ${student.email || 'N/A'}</div>
+                <div><strong>Grade/Level:</strong> ${student.grade || student.educationLevel || 'N/A'}</div>
                 <div><strong>Status:</strong> ${student.status || 'Pending'}</div>
             </div>
-            <div class="status-badge ${student.status === 'Approved' ? 'status-enrolled' : 'status-pending'}">Status: ${student.status || 'Pending Review'}</div>
         `;
         studentList.appendChild(card);
     });
@@ -489,19 +506,6 @@ if (enrollmentForm) {
         
         const paymentMethodInput = document.getElementById('paymentMethod');
         const paymentMethod = paymentMethodInput ? paymentMethodInput.value : 'full';
-        let amountDue = totalFee;
-        let paymentTerms = {};
-        
-        if (paymentMethod === 'full') {
-            amountDue = totalFee * 0.9;
-            paymentTerms = { type: 'full', discount: 10, total: amountDue };
-        } else if (paymentMethod === 'installment') {
-            const perPayment = Math.ceil(totalFee / 3);
-            amountDue = perPayment;
-            paymentTerms = { type: 'installment', payments: 3, perPayment: perPayment, total: totalFee };
-        } else {
-            paymentTerms = { type: 'later', total: totalFee, dueDate: 'End of Semester' };
-        }
         
         const applicationData = {
             userId: currentUser.uid,
@@ -522,12 +526,10 @@ if (enrollmentForm) {
             torFile: torBase64,
             goodMoralFile: goodMoralBase64,
             paymentMethod: paymentMethod,
-            paymentTerms: paymentTerms,
             totalFee: totalFee,
             enrollmentDate: Date.now(),
             status: 'pending',
-            applicationStatus: 'Submitted',
-            academicStatus: 'Regular'
+            applicationStatus: 'Pending Review'
         };
         
         if (!applicationData.fullName || !applicationData.email || !applicationData.phone) {
@@ -536,36 +538,29 @@ if (enrollmentForm) {
         }
         
         try {
-            const newAppRef = applicationsRef.push();
-            await newAppRef.set(applicationData);
+            await applicationsRef.push().set(applicationData);
             
-            const studentData = {
+            // Save to students for public display
+            await studentsRef.push().set({
                 fullName: applicationData.fullName,
                 email: applicationData.email,
                 grade: applicationData.educationLevel + " " + applicationData.yearLevel,
                 enrollmentDate: applicationData.enrollmentDate,
                 status: 'pending'
-            };
-            await studentsRef.push().set(studentData);
+            });
             
             enrollmentForm.reset();
-            const torFileName = document.getElementById('torFileName');
-            const goodMoralFileName = document.getElementById('goodMoralFileName');
-            if (torFileName) torFileName.innerHTML = '';
-            if (goodMoralFileName) goodMoralFileName.innerHTML = '';
+            if (document.getElementById('torFileName')) document.getElementById('torFileName').innerHTML = '';
+            if (document.getElementById('goodMoralFileName')) document.getElementById('goodMoralFileName').innerHTML = '';
             selectedTorFile = null;
             selectedGoodMoralFile = null;
             
-            const enrollmentSectionElem = document.getElementById('enrollmentSection');
-            const thankYouSection = document.getElementById('thankYouSection');
-            if (enrollmentSectionElem) enrollmentSectionElem.style.display = 'none';
-            if (thankYouSection) thankYouSection.style.display = 'block';
-            
+            showThankYou();
             showMessage('✅ Enrollment submitted successfully!', 'success');
             
         } catch (error) {
-            console.error('Error saving application:', error);
-            showMessage('❌ Error submitting application: ' + error.message, 'error');
+            console.error('Error:', error);
+            showMessage('❌ Error: ' + error.message, 'error');
         }
     });
 }
@@ -602,7 +597,6 @@ function showRegisterMessage(msg, type) {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     console.log("DOM fully loaded");
-    
     updateYearLevels();
     updateStrandCourse();
     
@@ -613,12 +607,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (paymentMethodInput) {
             paymentMethodInput.value = firstPaymentMethod.dataset.method;
         }
+        updatePaymentDetails();
     }
     
-    // Check if user is already logged in
-    if (auth.currentUser) {
-        console.log("User already logged in, forcing enrollment section");
-        forceShowEnrollmentSection();
-        loadStudents();
-    }
+    loadStudents();
+    showRecentStudents();
 });

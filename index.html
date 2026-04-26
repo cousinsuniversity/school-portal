@@ -35,29 +35,22 @@
             transition: opacity 0.5s ease;
         }
         
-        /* Auto-enlarging splash logo */
         .splash-logo {
-            width: auto;
-            height: auto;
+            width: 220px;
+            height: 220px;
+            min-width: 220px;
+            min-height: 220px;
             max-width: 280px;
             max-height: 280px;
-            min-width: 180px;
-            min-height: 180px;
             object-fit: contain;
             animation: splashPulse 1.5s ease-in-out infinite;
-        }
-        
-        /* Force larger size for small images */
-        .splash-logo.small-logo {
-            min-width: 250px;
-            min-height: 250px;
-            transform: scale(1.2);
         }
         
         .splash-title {
             color: white;
             margin-top: 30px;
-            font-size: 24px;
+            font-size: 28px;
+            font-weight: bold;
             animation: splashFadeIn 1s ease;
         }
         
@@ -146,57 +139,46 @@
         .logo-area {
             display: flex;
             align-items: center;
-            gap: 15px;
         }
         
-        /* Auto-enlarging header logo */
+        /* HEADER LOGO - LARGER */
         .school-logo {
-            width: auto;
-            height: auto;
-            max-width: 80px;
-            max-height: 80px;
-            min-width: 60px;
-            min-height: 60px;
-            object-fit: contain;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-        }
-        
-        /* Force enlarge small header logos */
-        .school-logo.small-logo {
+            width: 80px;
+            height: 80px;
             min-width: 80px;
             min-height: 80px;
-            transform: scale(1.1);
+            max-width: 100px;
+            max-height: 100px;
+            object-fit: contain;
+            border-radius: 12px;
         }
         
-        /* Sidebar logo (for student portal) */
+        /* SIDEBAR LOGO - MUCH LARGER */
         .sidebar-logo {
             text-align: center;
-            padding: 20px;
+            padding: 25px 20px;
             border-bottom: 1px solid #34495e;
             margin-bottom: 20px;
+            background: #243342;
         }
         
         .sidebar-logo-img {
-            width: auto;
-            height: auto;
-            max-width: 100px;
-            max-height: 100px;
-            min-width: 70px;
-            min-height: 70px;
+            width: 120px;
+            height: 120px;
+            min-width: 120px;
+            min-height: 120px;
+            max-width: 150px;
+            max-height: 150px;
             object-fit: contain;
-            border-radius: 50%;
+            border-radius: 20px;
             margin: 0 auto;
             display: block;
+            background: white;
+            padding: 10px;
+            border-radius: 15px;
         }
         
-        .sidebar-logo-img.small-logo {
-            min-width: 90px;
-            min-height: 90px;
-            transform: scale(1.1);
-        }
-        
-        /* Remove extra text - simplified header */
+        /* Remove extra text */
         .header-text {
             display: none;
         }
@@ -286,10 +268,10 @@
         }
 
         .sidebar {
-            width: 280px;
+            width: 300px;
             background: #2c3e50;
             color: white;
-            padding: 20px 0;
+            padding: 0 0 20px 0;
         }
 
         .profile-section {
@@ -525,14 +507,25 @@
                 flex-direction: column;
             }
             .logo-area {
-                flex-direction: column;
-                text-align: center;
+                justify-content: center;
             }
             .school-logo {
-                max-width: 60px;
-                max-height: 60px;
-                min-width: 50px;
-                min-height: 50px;
+                width: 60px;
+                height: 60px;
+                min-width: 60px;
+                min-height: 60px;
+            }
+            .sidebar-logo-img {
+                width: 90px;
+                height: 90px;
+                min-width: 90px;
+                min-height: 90px;
+            }
+            .splash-logo {
+                width: 160px;
+                height: 160px;
+                min-width: 160px;
+                min-height: 160px;
             }
         }
     </style>
@@ -540,7 +533,7 @@
 <body>
     <!-- SPLASH SCREEN -->
     <div id="splashScreen" class="splash-screen">
-        <img id="splashLogo" class="splash-logo" src="schoollogo.png" alt="Logo" onerror="this.src='https://via.placeholder.com/200?text=Portal'">
+        <img id="splashLogo" class="splash-logo" src="schoollogo.png" alt="Logo" onerror="this.src='https://via.placeholder.com/220?text=Portal'">
         <div class="splash-title">Student Portal</div>
         <div class="splash-loader"></div>
     </div>
@@ -609,7 +602,7 @@
             <div id="studentPortal" style="display:none;">
                 <div class="portal-layout">
                     <div class="sidebar">
-                        <!-- Sidebar Logo -->
+                        <!-- SIDEBAR LOGO - LARGER SIZE -->
                         <div class="sidebar-logo">
                             <img id="sidebarLogo" class="sidebar-logo-img" src="schoollogo.png" alt="Logo" onerror="this.style.display='none'">
                         </div>
@@ -800,56 +793,60 @@
     </div>
 
     <script>
-        // LOGO ENLARGEMENT DETECTION - For ALL logos everywhere
-        function enhanceAllLogos() {
+        // Force all logos to be properly sized
+        function fixAllLogos() {
             // Header logo
             const headerLogo = document.getElementById('schoolLogo');
-            if (headerLogo && headerLogo.complete && headerLogo.naturalWidth > 0) {
-                if (headerLogo.naturalWidth < 100 || headerLogo.naturalHeight < 100) {
-                    headerLogo.classList.add('small-logo');
-                    headerLogo.style.minWidth = '80px';
-                    headerLogo.style.minHeight = '80px';
-                    headerLogo.style.transform = 'scale(1.15)';
-                }
+            if (headerLogo) {
+                headerLogo.style.width = '80px';
+                headerLogo.style.height = '80px';
+                headerLogo.style.minWidth = '80px';
+                headerLogo.style.minHeight = '80px';
             }
             
             // Splash logo
             const splashLogo = document.getElementById('splashLogo');
-            if (splashLogo && splashLogo.complete && splashLogo.naturalWidth > 0) {
-                if (splashLogo.naturalWidth < 200 || splashLogo.naturalHeight < 200) {
-                    splashLogo.classList.add('small-logo');
-                    splashLogo.style.minWidth = '250px';
-                    splashLogo.style.minHeight = '250px';
-                    splashLogo.style.transform = 'scale(1.2)';
-                }
+            if (splashLogo) {
+                splashLogo.style.width = '220px';
+                splashLogo.style.height = '220px';
+                splashLogo.style.minWidth = '220px';
+                splashLogo.style.minHeight = '220px';
             }
             
-            // Sidebar logo
+            // Sidebar logo - FORCE LARGER SIZE
             const sidebarLogo = document.getElementById('sidebarLogo');
-            if (sidebarLogo && sidebarLogo.complete && sidebarLogo.naturalWidth > 0) {
-                if (sidebarLogo.naturalWidth < 80 || sidebarLogo.naturalHeight < 80) {
-                    sidebarLogo.classList.add('small-logo');
-                    sidebarLogo.style.minWidth = '90px';
-                    sidebarLogo.style.minHeight = '90px';
-                    sidebarLogo.style.transform = 'scale(1.1)';
-                }
+            if (sidebarLogo) {
+                sidebarLogo.style.width = '120px';
+                sidebarLogo.style.height = '120px';
+                sidebarLogo.style.minWidth = '120px';
+                sidebarLogo.style.minHeight = '120px';
+                sidebarLogo.style.maxWidth = '150px';
+                sidebarLogo.style.maxHeight = '150px';
+                sidebarLogo.style.display = 'block';
+                sidebarLogo.style.margin = '0 auto';
             }
         }
         
-        // Run on load and when images load
+        // Run on load
         window.addEventListener('load', function() {
-            setTimeout(enhanceAllLogos, 100);
+            setTimeout(fixAllLogos, 100);
+            setTimeout(fixAllLogos, 500);
         });
         
-        // Run when logos load
+        // Also run when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(fixAllLogos, 200);
+        });
+        
+        // Run when any logo loads
         const headerLogoImg = document.getElementById('schoolLogo');
-        if (headerLogoImg) headerLogoImg.onload = enhanceAllLogos;
+        if (headerLogoImg) headerLogoImg.onload = fixAllLogos;
         
         const splashLogoImg = document.getElementById('splashLogo');
-        if (splashLogoImg) splashLogoImg.onload = enhanceAllLogos;
+        if (splashLogoImg) splashLogoImg.onload = fixAllLogos;
         
         const sidebarLogoImg = document.getElementById('sidebarLogo');
-        if (sidebarLogoImg) sidebarLogoImg.onload = enhanceAllLogos;
+        if (sidebarLogoImg) sidebarLogoImg.onload = fixAllLogos;
     </script>
     
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>

@@ -35,11 +35,23 @@
             transition: opacity 0.5s ease;
         }
         
+        /* Auto-enlarging splash logo */
         .splash-logo {
-            width: 150px;
-            height: 150px;
+            width: auto;
+            height: auto;
+            max-width: 280px;
+            max-height: 280px;
+            min-width: 180px;
+            min-height: 180px;
             object-fit: contain;
             animation: splashPulse 1.5s ease-in-out infinite;
+        }
+        
+        /* Force larger size for small images */
+        .splash-logo.small-logo {
+            min-width: 250px;
+            min-height: 250px;
+            transform: scale(1.2);
         }
         
         .splash-title {
@@ -68,7 +80,7 @@
         
         @keyframes splashPulse {
             0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.1); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 0.9; }
             100% { transform: scale(1); opacity: 1; }
         }
         
@@ -144,11 +156,24 @@
             gap: 15px;
         }
         
+        /* Auto-enlarging header logo */
         .school-logo {
-            width: 60px;
-            height: 60px;
+            width: auto;
+            height: auto;
+            max-width: 90px;
+            max-height: 90px;
+            min-width: 60px;
+            min-height: 60px;
             object-fit: contain;
             border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        /* Force enlarge small header logos */
+        .school-logo.small-logo {
+            min-width: 80px;
+            min-height: 80px;
+            transform: scale(1.1);
         }
         
         .header-text h1 {
@@ -489,8 +514,10 @@
                 text-align: center;
             }
             .school-logo {
-                width: 40px;
-                height: 40px;
+                max-width: 70px;
+                max-height: 70px;
+                min-width: 50px;
+                min-height: 50px;
             }
             .header-text h1 {
                 font-size: 1em;
@@ -504,7 +531,7 @@
 <body>
     <!-- SPLASH SCREEN -->
     <div id="splashScreen" class="splash-screen">
-        <img id="splashLogo" class="splash-logo" src="schoollogo.png" alt="School Logo" onerror="this.src='https://via.placeholder.com/150?text=ABC+School'">
+        <img id="splashLogo" class="splash-logo" src="schoollogo.png" alt="School Logo" onerror="this.src='https://via.placeholder.com/200?text=ABC+School'">
         <div class="splash-title">ABC School Portal</div>
         <div class="splash-subtitle">Welcome to Academic Excellence</div>
         <div class="splash-loader"></div>
@@ -520,10 +547,8 @@
         <div class="header">
             <div class="header-content">
                 <div class="logo-area">
-                    <!-- SCHOOL LOGO - This replaces the text title -->
                     <img id="schoolLogo" class="school-logo" src="schoollogo.png" alt="School Logo" onerror="this.style.display='none'; document.getElementById('fallbackTitle').style.display='block';">
                     <div class="header-text">
-                        <!-- FALLBACK TEXT - Only shows if logo fails to load -->
                         <h1 id="fallbackTitle" style="display:none;"><i class="fas fa-graduation-cap"></i> ABC School Student Portal</h1>
                         <p>Academic Year 2025-2026 | Trimester System</p>
                     </div>
@@ -576,7 +601,7 @@
                 </div>
             </div>
 
-            <!-- STUDENT PORTAL (Dashboard with Tabs) -->
+            <!-- STUDENT PORTAL -->
             <div id="studentPortal" style="display:none;">
                 <div class="portal-layout">
                     <div class="sidebar">
@@ -731,9 +756,7 @@
                         <div id="gradesTab" class="tab-content">
                             <div class="card">
                                 <h3><i class="fas fa-chart-line"></i> Your Grades</h3>
-                                <div id="gradesList">
-                                    <p>Loading grades...</p>
-                                </div>
+                                <div id="gradesList"><p>Loading grades...</p></div>
                                 <div id="gradeSummary" style="margin-top: 20px;"></div>
                             </div>
                         </div>
@@ -742,22 +765,14 @@
                             <div class="card">
                                 <h3><i class="fas fa-folder-open"></i> Required Documents</h3>
                                 <div class="document-item">
-                                    <div class="document-name">
-                                        <i class="fas fa-file-pdf"></i> Transcript of Records (TOR)
-                                    </div>
-                                    <div>
-                                        <span id="torStatus" class="document-status doc-pending">Not Uploaded</span>
-                                        <button id="uploadTorBtn" class="btn-sm btn" style="width:auto; margin-left:10px;">Upload</button>
-                                    </div>
+                                    <div class="document-name"><i class="fas fa-file-pdf"></i> Transcript of Records (TOR)</div>
+                                    <div><span id="torStatus" class="document-status doc-pending">Not Uploaded</span>
+                                    <button id="uploadTorBtn" class="btn-sm btn" style="width:auto; margin-left:10px;">Upload</button></div>
                                 </div>
                                 <div class="document-item">
-                                    <div class="document-name">
-                                        <i class="fas fa-file-pdf"></i> Good Moral Certificate
-                                    </div>
-                                    <div>
-                                        <span id="moralStatus" class="document-status doc-pending">Not Uploaded</span>
-                                        <button id="uploadMoralBtn" class="btn-sm btn" style="width:auto; margin-left:10px;">Upload</button>
-                                    </div>
+                                    <div class="document-name"><i class="fas fa-file-pdf"></i> Good Moral Certificate</div>
+                                    <div><span id="moralStatus" class="document-status doc-pending">Not Uploaded</span>
+                                    <button id="uploadMoralBtn" class="btn-sm btn" style="width:auto; margin-left:10px;">Upload</button></div>
                                 </div>
                                 <input type="file" id="docUpload" style="display:none;" accept=".pdf,.jpg,.png">
                                 <div id="documentMessage"></div>
@@ -776,6 +791,49 @@
         </div>
     </div>
 
+    <script>
+        // LOGO ENLARGEMENT DETECTION - Automatically makes small logos readable
+        function enhanceLogoVisibility() {
+            // Check header logo
+            const headerLogo = document.getElementById('schoolLogo');
+            if (headerLogo && headerLogo.complete && headerLogo.naturalWidth > 0) {
+                if (headerLogo.naturalWidth < 100 || headerLogo.naturalHeight < 100) {
+                    headerLogo.classList.add('small-logo');
+                    headerLogo.style.minWidth = '90px';
+                    headerLogo.style.minHeight = '90px';
+                    headerLogo.style.transform = 'scale(1.15)';
+                }
+            }
+            
+            // Check splash logo
+            const splashLogo = document.getElementById('splashLogo');
+            if (splashLogo && splashLogo.complete && splashLogo.naturalWidth > 0) {
+                if (splashLogo.naturalWidth < 200 || splashLogo.naturalHeight < 200) {
+                    splashLogo.classList.add('small-logo');
+                    splashLogo.style.minWidth = '260px';
+                    splashLogo.style.minHeight = '260px';
+                    splashLogo.style.transform = 'scale(1.2)';
+                }
+            }
+        }
+        
+        // Run on load and when images load
+        window.addEventListener('load', function() {
+            setTimeout(enhanceLogoVisibility, 100);
+        });
+        
+        // Also run when logo loads
+        const headerLogoImg = document.getElementById('schoolLogo');
+        if (headerLogoImg) {
+            headerLogoImg.onload = enhanceLogoVisibility;
+        }
+        
+        const splashLogoImg = document.getElementById('splashLogo');
+        if (splashLogoImg) {
+            splashLogoImg.onload = enhanceLogoVisibility;
+        }
+    </script>
+    
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>

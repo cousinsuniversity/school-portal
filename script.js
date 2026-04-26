@@ -24,6 +24,45 @@ let currentDocType = null;
 let currentSubjects = [];
 let totalFee = 0;
 
+// DISABLE AUTO-LOGIN - Clear any existing auth state on page load
+auth.signOut().then(() => {
+    console.log("Auto-login disabled - user signed out");
+}).catch(() => {});
+
+// Splash Screen and Loading Functions
+function hideSplashAndShowApp() {
+    const splash = document.getElementById('splashScreen');
+    const mainContainer = document.getElementById('mainContainer');
+    if (splash && mainContainer) {
+        splash.style.opacity = '0';
+        setTimeout(() => {
+            splash.style.display = 'none';
+            mainContainer.style.display = 'block';
+        }, 500);
+    }
+}
+
+function showLoading(message = 'Processing...') {
+    const overlay = document.getElementById('loadingOverlay');
+    const text = document.getElementById('loadingText');
+    if (overlay) {
+        if (text) text.innerText = message;
+        overlay.style.display = 'flex';
+    }
+}
+
+function hideLoading() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+// Hide splash after 2 seconds
+setTimeout(() => {
+    hideSplashAndShowApp();
+}, 2000);
+
 // Price configuration
 const TUITION_FEES = {
     SHS: { perSubject: 1500, baseFee: 5000 },
@@ -78,9 +117,8 @@ const STRANDS = {
     College: ["BSIT", "BSCS", "BSBA", "BSEd", "BSN", "BSA"]
 };
 
-// SIMPLE ALERT FUNCTION (reliable fallback)
+// Simple Alert Function
 function showSimpleAlert(message, type) {
-    // Create a simple div alert that always works
     const alertDiv = document.createElement('div');
     alertDiv.style.cssText = `
         position: fixed;
@@ -104,7 +142,6 @@ function showSimpleAlert(message, type) {
         </div>
     `;
     
-    // Add animation style if not exists
     if (!document.querySelector('#alertStyles')) {
         const style = document.createElement('style');
         style.id = 'alertStyles';
@@ -123,7 +160,6 @@ function showSimpleAlert(message, type) {
     
     document.body.appendChild(alertDiv);
     
-    // Auto remove after 4 seconds
     setTimeout(() => {
         if (alertDiv.parentNode) {
             alertDiv.style.animation = 'slideOutAlert 0.3s ease';
@@ -131,7 +167,6 @@ function showSimpleAlert(message, type) {
         }
     }, 4000);
     
-    // Click to dismiss
     alertDiv.onclick = () => {
         alertDiv.style.animation = 'slideOutAlert 0.3s ease';
         setTimeout(() => alertDiv.remove(), 300);
@@ -323,8 +358,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const file = e.target.files[0];
             if (!file || !currentUser || !currentApplication) return;
             
+            showLoading('Uploading document...');
             try {
-                showSimpleAlert('Uploading document...', 'info');
                 const storageRef = storage.ref(`documents/${currentUser.uid}/${currentDocType}_${Date.now()}`);
                 await storageRef.put(file);
                 const downloadUrl = await storageRef.getDownloadURL();
@@ -340,14 +375,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 await applicationsRef.child(currentApplication.id).update(updateData);
                 showSimpleAlert('Document uploaded successfully!', 'success');
-                loadStudentData();
+                await loadStudentData();
             } catch (error) {
                 showSimpleAlert('Upload failed: ' + error.message, 'error');
+            } finally {
+                hideLoading();
             }
         });
     }
     
-    // Login form
+    // Login form - WITH LOADING SCREEN
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
@@ -355,17 +392,20 @@ document.addEventListener('DOMContentLoaded', function() {
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
             
+            showLoading('Logging in...');
             try {
                 await auth.signInWithEmailAndPassword(email, password);
                 showSimpleAlert('Login successful!', 'success');
                 document.getElementById('loginForm').reset();
             } catch (error) {
                 showSimpleAlert(error.message, 'error');
+            } finally {
+                hideLoading();
             }
         });
     }
     
-    // Register form
+    // Register form - WITH LOADING SCREEN
     const registerForm = document.getElementById('registerForm');
     if (registerForm) {
         registerForm.addEventListener('submit', async (e) => {
@@ -380,8 +420,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
+            showLoading('Creating account...');
             try {
-                showSimpleAlert('Creating account...', 'info');
                 const userCredential = await auth.createUserWithEmailAndPassword(email, password);
                 await usersRef.child(userCredential.user.uid).set({
                     name: name,
@@ -392,6 +432,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('registerForm').reset();
             } catch (error) {
                 showSimpleAlert(error.message, 'error');
+            } finally {
+                hideLoading();
             }
         });
     }
@@ -400,12 +442,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
+            showLoading('Logging out...');
             await auth.signOut();
+            hideLoading();
             location.reload();
         });
     }
     
-    // ENROLLMENT FORM SUBMISSION - FIXED with simple alert
+    // ENROLLMENT FORM SUBMISSION
     const enrollmentForm = document.getElementById('enrollmentForm');
     if (enrollmentForm) {
         enrollmentForm.addEventListener('submit', async (e) => {
@@ -418,13 +462,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // Check if user already has an application
             if (currentApplication) {
                 showSimpleAlert('You have already submitted an application. Please wait for approval.', 'error');
                 return;
             }
             
-            // Get selected subjects
             const selectedSubjects = [];
             currentSubjects.forEach((subject, index) => {
                 const checkbox = document.getElementById(`subj_${index}`);
@@ -435,7 +477,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const paymentMethod = document.getElementById('paymentMethod')?.value || 'full';
             
-            // Get form values
             const fullName = document.getElementById('fullName')?.value.trim();
             const dob = document.getElementById('dob')?.value;
             const gender = document.getElementById('gender')?.value;
@@ -481,39 +522,37 @@ document.addEventListener('DOMContentLoaded', function() {
             
             console.log("Submitting application:", applicationData);
             
+            showLoading('Submitting enrollment application...');
             try {
                 const newAppRef = applicationsRef.push();
                 await newAppRef.set(applicationData);
                 console.log("Application saved with ID:", newAppRef.key);
                 
-                // Show success alert - THIS WILL DEFINITELY SHOW
                 showSimpleAlert('✅ Enrollment submitted successfully! Your application is pending review.', 'success');
-                
-                // Reset form
                 enrollmentForm.reset();
-                
-                // Reload student data
                 await loadStudentData();
                 
-                // Switch to dashboard tab
                 setTimeout(() => {
                     const dashboardNav = document.querySelector('.nav-item[data-tab="dashboard"]');
                     if (dashboardNav) dashboardNav.click();
                 }, 1500);
-                
             } catch (error) {
                 console.error('Error saving application:', error);
                 showSimpleAlert('❌ Error: ' + error.message, 'error');
+            } finally {
+                hideLoading();
             }
         });
     }
 });
 
-// AUTH STATE LISTENER
+// AUTH STATE LISTENER - NO AUTO-LOGIN
+let authInitialized = false;
 auth.onAuthStateChanged(async (user) => {
     console.log("Auth state changed:", user ? "Logged in" : "Logged out");
     
-    if (user) {
+    if (user && !authInitialized) {
+        authInitialized = true;
         currentUser = user;
         const authSection = document.getElementById('authSection');
         const studentPortal = document.getElementById('studentPortal');
@@ -525,7 +564,8 @@ auth.onAuthStateChanged(async (user) => {
         
         await loadStudentData();
         
-    } else {
+    } else if (!user) {
+        authInitialized = false;
         currentUser = null;
         currentApplication = null;
         const authSection = document.getElementById('authSection');
@@ -541,122 +581,121 @@ auth.onAuthStateChanged(async (user) => {
 async function loadStudentData() {
     console.log("Loading student data for user:", currentUser?.uid);
     
-    // Get user data
-    const userData = await usersRef.child(currentUser.uid).once('value');
-    const userName = userData.val()?.name || 'Student';
-    const profileName = document.getElementById('profileName');
-    const welcomeName = document.getElementById('welcomeName');
-    if (profileName) profileName.innerText = userName;
-    if (welcomeName) welcomeName.innerText = userName;
-    
-    // Get application data
-    const userApp = await applicationsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
-    
-    if (userApp.exists()) {
-        userApp.forEach(snap => {
-            currentApplication = snap.val();
-            currentApplication.id = snap.key;
-        });
+    showLoading('Loading your data...');
+    try {
+        const userData = await usersRef.child(currentUser.uid).once('value');
+        const userName = userData.val()?.name || 'Student';
+        const profileName = document.getElementById('profileName');
+        const welcomeName = document.getElementById('welcomeName');
+        if (profileName) profileName.innerText = userName;
+        if (welcomeName) welcomeName.innerText = userName;
         
-        console.log("Found application:", currentApplication);
+        const userApp = await applicationsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
         
-        // Update profile
-        const profileLevel = document.getElementById('profileLevel');
-        const profileStatus = document.getElementById('profileStatus');
-        if (profileLevel) profileLevel.innerText = `${currentApplication.educationLevel || ''} ${currentApplication.yearLevel || ''}`;
-        if (profileStatus) {
-            if (currentApplication.status === 'approved') {
-                profileStatus.innerText = 'APPROVED';
-                profileStatus.className = 'profile-status status-approved';
-            } else if (currentApplication.status === 'pending') {
-                profileStatus.innerText = 'PENDING REVIEW';
-                profileStatus.className = 'profile-status status-pending';
+        if (userApp.exists()) {
+            userApp.forEach(snap => {
+                currentApplication = snap.val();
+                currentApplication.id = snap.key;
+            });
+            
+            console.log("Found application:", currentApplication);
+            
+            const profileLevel = document.getElementById('profileLevel');
+            const profileStatus = document.getElementById('profileStatus');
+            if (profileLevel) profileLevel.innerText = `${currentApplication.educationLevel || ''} ${currentApplication.yearLevel || ''}`;
+            if (profileStatus) {
+                if (currentApplication.status === 'approved') {
+                    profileStatus.innerText = 'APPROVED';
+                    profileStatus.className = 'profile-status status-approved';
+                } else if (currentApplication.status === 'pending') {
+                    profileStatus.innerText = 'PENDING REVIEW';
+                    profileStatus.className = 'profile-status status-pending';
+                }
             }
-        }
-        
-        // Update dashboard
-        const dashboardInfo = document.getElementById('dashboardInfo');
-        if (dashboardInfo) {
-            if (currentApplication.status === 'approved') {
-                dashboardInfo.innerHTML = `
-                    <div class="enrollment-summary" style="background: #d4edda; border-left: 4px solid #28a745; padding: 20px; border-radius: 10px;">
-                        <p><strong>✅ Application Status:</strong> APPROVED</p>
-                        <p><strong>Education Level:</strong> ${currentApplication.educationLevel || 'Not set'}</p>
-                        <p><strong>Year Level:</strong> ${currentApplication.yearLevel || 'Not set'}</p>
-                        <p><strong>Strand/Course:</strong> ${currentApplication.strandCourse || 'Not set'}</p>
-                        <p><strong>Enrollment Date:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
+            
+            const dashboardInfo = document.getElementById('dashboardInfo');
+            if (dashboardInfo) {
+                if (currentApplication.status === 'approved') {
+                    dashboardInfo.innerHTML = `
+                        <div class="enrollment-summary" style="background: #d4edda; border-left: 4px solid #28a745; padding: 20px; border-radius: 10px;">
+                            <p><strong>✅ Application Status:</strong> APPROVED</p>
+                            <p><strong>Education Level:</strong> ${currentApplication.educationLevel || 'Not set'}</p>
+                            <p><strong>Year Level:</strong> ${currentApplication.yearLevel || 'Not set'}</p>
+                            <p><strong>Strand/Course:</strong> ${currentApplication.strandCourse || 'Not set'}</p>
+                            <p><strong>Enrollment Date:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
+                        </div>
+                    `;
+                } else if (currentApplication.status === 'pending') {
+                    dashboardInfo.innerHTML = `
+                        <div class="enrollment-summary" style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; border-radius: 10px;">
+                            <p><strong>⏳ Application Status:</strong> PENDING REVIEW</p>
+                            <p><strong>Education Level:</strong> ${currentApplication.educationLevel || 'Not set'}</p>
+                            <p><strong>Year Level:</strong> ${currentApplication.yearLevel || 'Not set'}</p>
+                            <p><strong>Strand/Course:</strong> ${currentApplication.strandCourse || 'Not set'}</p>
+                            <p><strong>Enrollment Date:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
+                            <p style="color: #856404; margin-top: 10px;">We are reviewing your application. Please wait for approval.</p>
+                        </div>
+                    `;
+                }
+            }
+            
+            const enrollmentTab = document.getElementById('enrollmentTab');
+            if (enrollmentTab && currentApplication.status === 'pending') {
+                enrollmentTab.innerHTML = `
+                    <div class="card">
+                        <h3><i class="fas fa-clock"></i> Application Pending</h3>
+                        <div class="enrollment-summary" style="background: #fff3cd; text-align: center; padding: 40px; border-radius: 10px;">
+                            <i class="fas fa-hourglass-half" style="font-size: 48px; color: #ffc107; margin-bottom: 20px;"></i>
+                            <h3>Your application is being reviewed</h3>
+                            <p>You have already submitted an enrollment application. Please wait for admin approval.</p>
+                            <p><strong>Submitted on:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
+                        </div>
                     </div>
                 `;
-            } else if (currentApplication.status === 'pending') {
-                dashboardInfo.innerHTML = `
-                    <div class="enrollment-summary" style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; border-radius: 10px;">
-                        <p><strong>⏳ Application Status:</strong> PENDING REVIEW</p>
-                        <p><strong>Education Level:</strong> ${currentApplication.educationLevel || 'Not set'}</p>
-                        <p><strong>Year Level:</strong> ${currentApplication.yearLevel || 'Not set'}</p>
-                        <p><strong>Strand/Course:</strong> ${currentApplication.strandCourse || 'Not set'}</p>
-                        <p><strong>Enrollment Date:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
-                        <p style="color: #856404; margin-top: 10px;">We are reviewing your application. Please wait for approval.</p>
+            }
+            
+            if (currentApplication.status === 'approved') {
+                await loadGrades();
+            } else {
+                const gradesList = document.getElementById('gradesList');
+                if (gradesList) gradesList.innerHTML = '<p>Grades will be available once your application is approved.</p>';
+            }
+            
+            const torStatus = document.getElementById('torStatus');
+            const moralStatus = document.getElementById('moralStatus');
+            if (torStatus && currentApplication.torFile) {
+                torStatus.innerText = 'Uploaded';
+                torStatus.className = 'document-status doc-uploaded';
+            }
+            if (moralStatus && currentApplication.goodMoralFile) {
+                moralStatus.innerText = 'Uploaded';
+                moralStatus.className = 'document-status doc-uploaded';
+            }
+            
+            const paymentInfo = document.getElementById('paymentInfo');
+            if (paymentInfo) {
+                paymentInfo.innerHTML = `
+                    <div class="enrollment-summary" style="padding: 20px; border-radius: 10px; background: #f8f9fa;">
+                        <p><strong>Total Tuition Fee:</strong> ₱${(currentApplication.totalFee || 0).toLocaleString()}</p>
+                        <p><strong>Payment Method:</strong> ${currentApplication.paymentMethod === 'full' ? 'Full Payment' : (currentApplication.paymentMethod === 'installment' ? 'Installment' : 'School Pay Later')}</p>
+                        <p><strong>Payment Status:</strong> Pending</p>
                     </div>
                 `;
             }
-        }
-        
-        // Update enrollment tab if pending
-        const enrollmentTab = document.getElementById('enrollmentTab');
-        if (enrollmentTab && currentApplication.status === 'pending') {
-            enrollmentTab.innerHTML = `
-                <div class="card">
-                    <h3><i class="fas fa-clock"></i> Application Pending</h3>
-                    <div class="enrollment-summary" style="background: #fff3cd; text-align: center; padding: 40px; border-radius: 10px;">
-                        <i class="fas fa-hourglass-half" style="font-size: 48px; color: #ffc107; margin-bottom: 20px;"></i>
-                        <h3>Your application is being reviewed</h3>
-                        <p>You have already submitted an enrollment application. Please wait for admin approval.</p>
-                        <p><strong>Submitted on:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Load grades if approved
-        if (currentApplication.status === 'approved') {
-            await loadGrades();
         } else {
-            const gradesList = document.getElementById('gradesList');
-            if (gradesList) gradesList.innerHTML = '<p>Grades will be available once your application is approved.</p>';
+            console.log("No application found for user");
+            currentApplication = null;
+            const profileLevel = document.getElementById('profileLevel');
+            const dashboardInfo = document.getElementById('dashboardInfo');
+            
+            if (profileLevel) profileLevel.innerText = 'Not Enrolled';
+            if (dashboardInfo) dashboardInfo.innerHTML = '<p>You haven\'t submitted an enrollment application yet. Please go to the Enrollment tab to register.</p>';
+            
+            const enrollmentNav = document.querySelector('.nav-item[data-tab="enrollment"]');
+            if (enrollmentNav) enrollmentNav.click();
         }
-        
-        // Update document status
-        const torStatus = document.getElementById('torStatus');
-        const moralStatus = document.getElementById('moralStatus');
-        if (torStatus && currentApplication.torFile) {
-            torStatus.innerText = 'Uploaded';
-            torStatus.className = 'document-status doc-uploaded';
-        }
-        if (moralStatus && currentApplication.goodMoralFile) {
-            moralStatus.innerText = 'Uploaded';
-            moralStatus.className = 'document-status doc-uploaded';
-        }
-        
-        // Update payment info
-        const paymentInfo = document.getElementById('paymentInfo');
-        if (paymentInfo) {
-            paymentInfo.innerHTML = `
-                <div class="enrollment-summary" style="padding: 20px; border-radius: 10px; background: #f8f9fa;">
-                    <p><strong>Total Tuition Fee:</strong> ₱${(currentApplication.totalFee || 0).toLocaleString()}</p>
-                    <p><strong>Payment Method:</strong> ${currentApplication.paymentMethod === 'full' ? 'Full Payment' : (currentApplication.paymentMethod === 'installment' ? 'Installment' : 'School Pay Later')}</p>
-                    <p><strong>Payment Status:</strong> Pending</p>
-                </div>
-            `;
-        }
-        
-    } else {
-        console.log("No application found for user");
-        currentApplication = null;
-        const profileLevel = document.getElementById('profileLevel');
-        const dashboardInfo = document.getElementById('dashboardInfo');
-        
-        if (profileLevel) profileLevel.innerText = 'Not Enrolled';
-        if (dashboardInfo) dashboardInfo.innerHTML = '<p>You haven\'t submitted an enrollment application yet. Please go to the Enrollment tab to register.</p>';
+    } finally {
+        hideLoading();
     }
 }
 

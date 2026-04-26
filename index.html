@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Portal | ABC School</title>
+    <title>Student Portal</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * {
@@ -59,13 +59,6 @@
             margin-top: 30px;
             font-size: 24px;
             animation: splashFadeIn 1s ease;
-        }
-        
-        .splash-subtitle {
-            color: rgba(255,255,255,0.8);
-            margin-top: 10px;
-            font-size: 14px;
-            animation: splashFadeIn 1.5s ease;
         }
         
         .splash-loader {
@@ -141,7 +134,7 @@
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 20px 30px;
+            padding: 15px 30px;
         }
 
         .header-content {
@@ -160,8 +153,8 @@
         .school-logo {
             width: auto;
             height: auto;
-            max-width: 90px;
-            max-height: 90px;
+            max-width: 80px;
+            max-height: 80px;
             min-width: 60px;
             min-height: 60px;
             object-fit: contain;
@@ -176,16 +169,38 @@
             transform: scale(1.1);
         }
         
-        .header-text h1 {
-            font-size: 1.5em;
-            margin-bottom: 5px;
+        /* Sidebar logo (for student portal) */
+        .sidebar-logo {
+            text-align: center;
+            padding: 20px;
+            border-bottom: 1px solid #34495e;
+            margin-bottom: 20px;
         }
         
-        .header-text p {
-            font-size: 0.85em;
-            opacity: 0.9;
+        .sidebar-logo-img {
+            width: auto;
+            height: auto;
+            max-width: 100px;
+            max-height: 100px;
+            min-width: 70px;
+            min-height: 70px;
+            object-fit: contain;
+            border-radius: 50%;
+            margin: 0 auto;
+            display: block;
         }
-
+        
+        .sidebar-logo-img.small-logo {
+            min-width: 90px;
+            min-height: 90px;
+            transform: scale(1.1);
+        }
+        
+        /* Remove extra text - simplified header */
+        .header-text {
+            display: none;
+        }
+        
         .content {
             padding: 0;
         }
@@ -274,7 +289,7 @@
             width: 280px;
             background: #2c3e50;
             color: white;
-            padding: 30px 0;
+            padding: 20px 0;
         }
 
         .profile-section {
@@ -514,16 +529,10 @@
                 text-align: center;
             }
             .school-logo {
-                max-width: 70px;
-                max-height: 70px;
+                max-width: 60px;
+                max-height: 60px;
                 min-width: 50px;
                 min-height: 50px;
-            }
-            .header-text h1 {
-                font-size: 1em;
-            }
-            .header-text p {
-                font-size: 0.7em;
             }
         }
     </style>
@@ -531,9 +540,8 @@
 <body>
     <!-- SPLASH SCREEN -->
     <div id="splashScreen" class="splash-screen">
-        <img id="splashLogo" class="splash-logo" src="schoollogo.png" alt="School Logo" onerror="this.src='https://via.placeholder.com/200?text=ABC+School'">
-        <div class="splash-title">ABC School Portal</div>
-        <div class="splash-subtitle">Welcome to Academic Excellence</div>
+        <img id="splashLogo" class="splash-logo" src="schoollogo.png" alt="Logo" onerror="this.src='https://via.placeholder.com/200?text=Portal'">
+        <div class="splash-title">Student Portal</div>
         <div class="splash-loader"></div>
     </div>
     
@@ -547,11 +555,7 @@
         <div class="header">
             <div class="header-content">
                 <div class="logo-area">
-                    <img id="schoolLogo" class="school-logo" src="schoollogo.png" alt="School Logo" onerror="this.style.display='none'; document.getElementById('fallbackTitle').style.display='block';">
-                    <div class="header-text">
-                        <h1 id="fallbackTitle" style="display:none;"><i class="fas fa-graduation-cap"></i> ABC School Student Portal</h1>
-                        <p>Academic Year 2025-2026 | Trimester System</p>
-                    </div>
+                    <img id="schoolLogo" class="school-logo" src="schoollogo.png" alt="Logo" onerror="this.style.display='none'">
                 </div>
                 <button id="logoutBtn" class="logout-btn" style="display:none;"><i class="fas fa-sign-out-alt"></i> Logout</button>
             </div>
@@ -605,11 +609,15 @@
             <div id="studentPortal" style="display:none;">
                 <div class="portal-layout">
                     <div class="sidebar">
+                        <!-- Sidebar Logo -->
+                        <div class="sidebar-logo">
+                            <img id="sidebarLogo" class="sidebar-logo-img" src="schoollogo.png" alt="Logo" onerror="this.style.display='none'">
+                        </div>
                         <div class="profile-section">
                             <div class="avatar">
                                 <i class="fas fa-user-graduate"></i>
                             </div>
-                            <div class="profile-name" id="profileName">Student Name</div>
+                            <div class="profile-name" id="profileName">Student</div>
                             <div class="profile-level" id="profileLevel">Loading...</div>
                             <div><span class="profile-status" id="profileStatus">Pending</span></div>
                         </div>
@@ -618,7 +626,7 @@
                                 <i class="fas fa-tachometer-alt"></i> Dashboard
                             </li>
                             <li class="nav-item" data-tab="enrollment">
-                                <i class="fas fa-edit"></i> Enrollment / Registration
+                                <i class="fas fa-edit"></i> Enrollment
                             </li>
                             <li class="nav-item" data-tab="grades">
                                 <i class="fas fa-chart-line"></i> Grades
@@ -640,19 +648,19 @@
                             </div>
                             <div class="card">
                                 <h3><i class="fas fa-bell"></i> Announcements</h3>
-                                <p>Welcome to the ABC School Student Portal. Here you can:</p>
+                                <p>Welcome to the Student Portal. Here you can:</p>
                                 <ul style="margin-left: 20px; margin-top: 10px;">
-                                    <li>Complete your enrollment/registration</li>
-                                    <li>View your grades and academic standing</li>
-                                    <li>Upload required documents (TOR, Good Moral)</li>
-                                    <li>Track your payment status</li>
+                                    <li>Complete your enrollment</li>
+                                    <li>View your grades</li>
+                                    <li>Upload required documents</li>
+                                    <li>Track payments</li>
                                 </ul>
                             </div>
                         </div>
 
                         <div id="enrollmentTab" class="tab-content">
                             <div class="card">
-                                <h3><i class="fas fa-edit"></i> Student Registration Form</h3>
+                                <h3><i class="fas fa-edit"></i> Registration Form</h3>
                                 <form id="enrollmentForm">
                                     <div class="form-grid">
                                         <div class="form-group">
@@ -677,15 +685,15 @@
                                             <input type="email" id="email" required>
                                         </div>
                                         <div class="form-group">
-                                            <label>Phone Number *</label>
+                                            <label>Phone *</label>
                                             <input type="tel" id="phone" required>
                                         </div>
                                         <div class="form-group">
                                             <label>Education Level *</label>
                                             <select id="educationLevel" required>
                                                 <option value="">Select Level</option>
-                                                <option value="SHS">Senior High School (Grade 11-12)</option>
-                                                <option value="College">College (1st-4th Year)</option>
+                                                <option value="SHS">Senior High School</option>
+                                                <option value="College">College</option>
                                             </select>
                                         </div>
                                         <div class="form-group">
@@ -697,7 +705,7 @@
                                         <div class="form-group">
                                             <label>Strand/Course *</label>
                                             <select id="strandCourse" required>
-                                                <option value="">Select Strand/Course</option>
+                                                <option value="">Select</option>
                                             </select>
                                         </div>
                                         <div class="form-group">
@@ -705,7 +713,7 @@
                                             <textarea id="address" required></textarea>
                                         </div>
                                         <div class="form-group">
-                                            <label>Parent/Guardian Name *</label>
+                                            <label>Parent/Guardian *</label>
                                             <input type="text" id="parentName" required>
                                         </div>
                                         <div class="form-group">
@@ -731,7 +739,7 @@
                                     
                                     <div class="payment-options">
                                         <h3>Payment Options</h3>
-                                        <p><strong>Total Tuition Fee: <span id="totalFee" class="price-tag">₱0.00</span></strong></p>
+                                        <p><strong>Total Fee: <span id="totalFee" class="price-tag">₱0.00</span></strong></p>
                                         <div>
                                             <div class="payment-method" data-method="full">
                                                 <i class="fas fa-money-bill-wave"></i> Full Payment (10% discount)
@@ -740,14 +748,14 @@
                                                 <i class="fas fa-calendar-alt"></i> Installment (3 payments)
                                             </div>
                                             <div class="payment-method" data-method="later">
-                                                <i class="fas fa-clock"></i> School Pay Later
+                                                <i class="fas fa-clock"></i> Pay Later
                                             </div>
                                         </div>
                                         <input type="hidden" id="paymentMethod" value="full">
                                         <p id="paymentDetails" class="payment-details"></p>
                                     </div>
                                     
-                                    <button type="submit" class="btn btn-success"><i class="fas fa-paper-plane"></i> Submit Enrollment Application</button>
+                                    <button type="submit" class="btn btn-success"><i class="fas fa-paper-plane"></i> Submit Application</button>
                                 </form>
                                 <div id="enrollmentMessage"></div>
                             </div>
@@ -763,9 +771,9 @@
 
                         <div id="documentsTab" class="tab-content">
                             <div class="card">
-                                <h3><i class="fas fa-folder-open"></i> Required Documents</h3>
+                                <h3><i class="fas fa-folder-open"></i> Documents</h3>
                                 <div class="document-item">
-                                    <div class="document-name"><i class="fas fa-file-pdf"></i> Transcript of Records (TOR)</div>
+                                    <div class="document-name"><i class="fas fa-file-pdf"></i> Transcript of Records</div>
                                     <div><span id="torStatus" class="document-status doc-pending">Not Uploaded</span>
                                     <button id="uploadTorBtn" class="btn-sm btn" style="width:auto; margin-left:10px;">Upload</button></div>
                                 </div>
@@ -781,7 +789,7 @@
 
                         <div id="paymentTab" class="tab-content">
                             <div class="card">
-                                <h3><i class="fas fa-credit-card"></i> Payment Information</h3>
+                                <h3><i class="fas fa-credit-card"></i> Payment</h3>
                                 <div id="paymentInfo"></div>
                             </div>
                         </div>
@@ -792,46 +800,56 @@
     </div>
 
     <script>
-        // LOGO ENLARGEMENT DETECTION - Automatically makes small logos readable
-        function enhanceLogoVisibility() {
-            // Check header logo
+        // LOGO ENLARGEMENT DETECTION - For ALL logos everywhere
+        function enhanceAllLogos() {
+            // Header logo
             const headerLogo = document.getElementById('schoolLogo');
             if (headerLogo && headerLogo.complete && headerLogo.naturalWidth > 0) {
                 if (headerLogo.naturalWidth < 100 || headerLogo.naturalHeight < 100) {
                     headerLogo.classList.add('small-logo');
-                    headerLogo.style.minWidth = '90px';
-                    headerLogo.style.minHeight = '90px';
+                    headerLogo.style.minWidth = '80px';
+                    headerLogo.style.minHeight = '80px';
                     headerLogo.style.transform = 'scale(1.15)';
                 }
             }
             
-            // Check splash logo
+            // Splash logo
             const splashLogo = document.getElementById('splashLogo');
             if (splashLogo && splashLogo.complete && splashLogo.naturalWidth > 0) {
                 if (splashLogo.naturalWidth < 200 || splashLogo.naturalHeight < 200) {
                     splashLogo.classList.add('small-logo');
-                    splashLogo.style.minWidth = '260px';
-                    splashLogo.style.minHeight = '260px';
+                    splashLogo.style.minWidth = '250px';
+                    splashLogo.style.minHeight = '250px';
                     splashLogo.style.transform = 'scale(1.2)';
+                }
+            }
+            
+            // Sidebar logo
+            const sidebarLogo = document.getElementById('sidebarLogo');
+            if (sidebarLogo && sidebarLogo.complete && sidebarLogo.naturalWidth > 0) {
+                if (sidebarLogo.naturalWidth < 80 || sidebarLogo.naturalHeight < 80) {
+                    sidebarLogo.classList.add('small-logo');
+                    sidebarLogo.style.minWidth = '90px';
+                    sidebarLogo.style.minHeight = '90px';
+                    sidebarLogo.style.transform = 'scale(1.1)';
                 }
             }
         }
         
         // Run on load and when images load
         window.addEventListener('load', function() {
-            setTimeout(enhanceLogoVisibility, 100);
+            setTimeout(enhanceAllLogos, 100);
         });
         
-        // Also run when logo loads
+        // Run when logos load
         const headerLogoImg = document.getElementById('schoolLogo');
-        if (headerLogoImg) {
-            headerLogoImg.onload = enhanceLogoVisibility;
-        }
+        if (headerLogoImg) headerLogoImg.onload = enhanceAllLogos;
         
         const splashLogoImg = document.getElementById('splashLogo');
-        if (splashLogoImg) {
-            splashLogoImg.onload = enhanceLogoVisibility;
-        }
+        if (splashLogoImg) splashLogoImg.onload = enhanceAllLogos;
+        
+        const sidebarLogoImg = document.getElementById('sidebarLogo');
+        if (sidebarLogoImg) sidebarLogoImg.onload = enhanceAllLogos;
     </script>
     
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>

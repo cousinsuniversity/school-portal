@@ -19,6 +19,104 @@
             padding: 20px;
         }
 
+        /* Splash Screen */
+        .splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            z-index: 99999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            transition: opacity 0.5s ease;
+        }
+        
+        .splash-logo {
+            width: 150px;
+            height: 150px;
+            object-fit: contain;
+            animation: splashPulse 1.5s ease-in-out infinite;
+        }
+        
+        .splash-title {
+            color: white;
+            margin-top: 30px;
+            font-size: 24px;
+            animation: splashFadeIn 1s ease;
+        }
+        
+        .splash-subtitle {
+            color: rgba(255,255,255,0.8);
+            margin-top: 10px;
+            font-size: 14px;
+            animation: splashFadeIn 1.5s ease;
+        }
+        
+        .splash-loader {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            margin-top: 30px;
+            animation: splashSpin 1s linear infinite;
+        }
+        
+        @keyframes splashPulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        @keyframes splashSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes splashFadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 99998;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        .loading-text {
+            color: white;
+            font-size: 16px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -39,14 +137,27 @@
             justify-content: space-between;
             align-items: center;
         }
-
-        .header h1 {
-            font-size: 1.8em;
+        
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .school-logo {
+            width: 50px;
+            height: 50px;
+            object-fit: contain;
+            border-radius: 10px;
+        }
+        
+        .header-text h1 {
+            font-size: 1.5em;
             margin-bottom: 5px;
         }
-
-        .header p {
-            font-size: 0.9em;
+        
+        .header-text p {
+            font-size: 0.85em;
             opacity: 0.9;
         }
 
@@ -109,10 +220,6 @@
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
         }
 
-        .btn-danger {
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-        }
-
         .message {
             padding: 15px;
             border-radius: 8px;
@@ -138,7 +245,6 @@
             min-height: 600px;
         }
 
-        /* Sidebar */
         .sidebar {
             width: 280px;
             background: #2c3e50;
@@ -220,7 +326,6 @@
             border-left: 4px solid white;
         }
 
-        /* Main Content */
         .main-content {
             flex: 1;
             background: #f5f6fa;
@@ -250,21 +355,12 @@
             border-bottom: 2px solid #667eea;
         }
 
-        /* Grade Items */
         .grade-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 12px;
             border-bottom: 1px solid #ecf0f1;
-        }
-
-        .grade-subject {
-            font-weight: 600;
-        }
-
-        .grade-score {
-            font-size: 1.1em;
         }
 
         .grade-pass {
@@ -277,7 +373,6 @@
             font-weight: bold;
         }
 
-        /* Document Items */
         .document-item {
             display: flex;
             justify-content: space-between;
@@ -286,11 +381,6 @@
             border: 1px solid #ecf0f1;
             border-radius: 8px;
             margin-bottom: 10px;
-        }
-
-        .document-name i {
-            margin-right: 10px;
-            color: #667eea;
         }
 
         .document-status {
@@ -309,7 +399,6 @@
             color: #856404;
         }
 
-        /* Subject Grid */
         .subjects-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -325,7 +414,6 @@
             border-radius: 8px;
         }
 
-        /* Payment Options */
         .payment-options {
             background: #f0f8ff;
             padding: 20px;
@@ -367,7 +455,6 @@
             cursor: pointer;
         }
 
-        /* Enrollment Summary */
         .enrollment-summary {
             background: #e8f4fd;
             border-radius: 10px;
@@ -397,16 +484,44 @@
             .auth-container {
                 flex-direction: column;
             }
+            .logo-area {
+                flex-direction: column;
+                text-align: center;
+            }
+            .school-logo {
+                width: 40px;
+                height: 40px;
+            }
+            .header-text h1 {
+                font-size: 1.2em;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <!-- SPLASH SCREEN -->
+    <div id="splashScreen" class="splash-screen">
+        <img id="splashLogo" class="splash-logo" src="schoollogo.png" alt="School Logo" onerror="this.src='https://via.placeholder.com/150?text=ABC+School'">
+        <div class="splash-title">ABC School Portal</div>
+        <div class="splash-subtitle">Welcome to Academic Excellence</div>
+        <div class="splash-loader"></div>
+    </div>
+    
+    <!-- LOADING OVERLAY -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">Processing...</div>
+    </div>
+
+    <div class="container" id="mainContainer" style="display:none;">
         <div class="header">
             <div class="header-content">
-                <div>
-                    <h1><i class="fas fa-graduation-cap"></i> ABC School Student Portal</h1>
-                    <p>Academic Year 2025-2026 | Trimester System</p>
+                <div class="logo-area">
+                    <img id="headerLogo" class="school-logo" src="schoollogo.png" alt="School Logo" onerror="this.style.display='none'">
+                    <div class="header-text">
+                        <h1><i class="fas fa-graduation-cap"></i> ABC School Student Portal</h1>
+                        <p>Academic Year 2025-2026 | Trimester System</p>
+                    </div>
                 </div>
                 <button id="logoutBtn" class="logout-btn" style="display:none;"><i class="fas fa-sign-out-alt"></i> Logout</button>
             </div>
@@ -459,7 +574,6 @@
             <!-- STUDENT PORTAL (Dashboard with Tabs) -->
             <div id="studentPortal" style="display:none;">
                 <div class="portal-layout">
-                    <!-- Sidebar -->
                     <div class="sidebar">
                         <div class="profile-section">
                             <div class="avatar">
@@ -488,9 +602,7 @@
                         </ul>
                     </div>
 
-                    <!-- Main Content -->
                     <div class="main-content">
-                        <!-- DASHBOARD TAB -->
                         <div id="dashboardTab" class="tab-content active">
                             <div class="card">
                                 <h3><i class="fas fa-user-circle"></i> Welcome, <span id="welcomeName">Student</span>!</h3>
@@ -508,7 +620,6 @@
                             </div>
                         </div>
 
-                        <!-- ENROLLMENT/REGISTRATION TAB -->
                         <div id="enrollmentTab" class="tab-content">
                             <div class="card">
                                 <h3><i class="fas fa-edit"></i> Student Registration Form</h3>
@@ -612,7 +723,6 @@
                             </div>
                         </div>
 
-                        <!-- GRADES TAB -->
                         <div id="gradesTab" class="tab-content">
                             <div class="card">
                                 <h3><i class="fas fa-chart-line"></i> Your Grades</h3>
@@ -623,7 +733,6 @@
                             </div>
                         </div>
 
-                        <!-- DOCUMENTS TAB -->
                         <div id="documentsTab" class="tab-content">
                             <div class="card">
                                 <h3><i class="fas fa-folder-open"></i> Required Documents</h3>
@@ -650,7 +759,6 @@
                             </div>
                         </div>
 
-                        <!-- PAYMENT TAB -->
                         <div id="paymentTab" class="tab-content">
                             <div class="card">
                                 <h3><i class="fas fa-credit-card"></i> Payment Information</h3>

@@ -145,10 +145,10 @@
         }
         
         .school-logo {
-            width: 50px;
-            height: 50px;
+            width: 60px;
+            height: 60px;
             object-fit: contain;
-            border-radius: 10px;
+            border-radius: 12px;
         }
         
         .header-text h1 {
@@ -493,7 +493,10 @@
                 height: 40px;
             }
             .header-text h1 {
-                font-size: 1.2em;
+                font-size: 1em;
+            }
+            .header-text p {
+                font-size: 0.7em;
             }
         }
     </style>
@@ -517,9 +520,11 @@
         <div class="header">
             <div class="header-content">
                 <div class="logo-area">
-                    <img id="headerLogo" class="school-logo" src="schoollogo.png" alt="School Logo" onerror="this.style.display='none'">
+                    <!-- SCHOOL LOGO - This replaces the text title -->
+                    <img id="schoolLogo" class="school-logo" src="schoollogo.png" alt="School Logo" onerror="this.style.display='none'; document.getElementById('fallbackTitle').style.display='block';">
                     <div class="header-text">
-                        <h1><i class="fas fa-graduation-cap"></i> ABC School Student Portal</h1>
+                        <!-- FALLBACK TEXT - Only shows if logo fails to load -->
+                        <h1 id="fallbackTitle" style="display:none;"><i class="fas fa-graduation-cap"></i> ABC School Student Portal</h1>
                         <p>Academic Year 2025-2026 | Trimester System</p>
                     </div>
                 </div>

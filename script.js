@@ -20,11 +20,13 @@ let enrollmentsRef = database.ref('enrollments');
 let subjectsRef = database.ref('subjects');
 let coursesRef = database.ref('courses');
 let gradesRef = database.ref('grades');
+let paymentsRef = database.ref('payments');
 let currentUser = null;
 let currentApplication = null;
 let currentEnrollment = null;
 let availableSubjects = [];
 let selectedSubjects = [];
+let currentPaymentReceipt = null;
 
 auth.signOut().then(() => console.log("Auto-login disabled")).catch(()=>{});
 
@@ -121,7 +123,45 @@ document.querySelectorAll('.nav-item').forEach(item => {
     });
 });
 
-// ==================== REGISTRATION FORM (Personal Info ONLY) ====================
+// ==================== REGISTRATION FORM (Personal Info + SHS/College) ====================
+// Update year level options based on education level
+function updateYearLevelOptions() {
+    const level = document.getElementById('educationLevel').value;
+    const yearSelect = document.getElementById('yearLevel');
+    if (!yearSelect) return;
+    yearSelect.innerHTML = '<option value="">Select Year</option>';
+    
+    if (level === 'SHS') {
+        yearSelect.innerHTML += '<option value="Grade 11">Grade 11</option>';
+        yearSelect.innerHTML += '<option value="Grade 12">Grade 12</option>';
+    } else if (level === 'College') {
+        yearSelect.innerHTML += '<option value="1st Year">1st Year</option>';
+        yearSelect.innerHTML += '<option value="2nd Year">2nd Year</option>';
+        yearSelect.innerHTML += '<option value="3rd Year">3rd Year</option>';
+        yearSelect.innerHTML += '<option value="4th Year">4th Year</option>';
+    }
+}
+
+// Update course options based on education level
+function updateCourseOptions() {
+    const level = document.getElementById('educationLevel').value;
+    const courseSelect = document.getElementById('strandCourse');
+    if (!courseSelect) return;
+    courseSelect.innerHTML = '<option value="">Select Course/Strand</option>';
+    
+    coursesRef.orderByChild('level').equalTo(level).once('value', (snapshot) => {
+        snapshot.forEach(child => {
+            const name = child.val().name;
+            courseSelect.innerHTML += `<option value="${name}">${name}</option>`;
+        });
+    });
+}
+
+document.getElementById('educationLevel')?.addEventListener('change', () => {
+    updateYearLevelOptions();
+    updateCourseOptions();
+});
+
 document.getElementById('enrollmentForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     if(!currentUser) return showToast('Please login', 'error');
@@ -138,11 +178,16 @@ document.getElementById('enrollmentForm')?.addEventListener('submit', async (e) 
         parentName: document.getElementById('parentName').value.trim(),
         parentPhone: document.getElementById('parentPhone').value.trim(),
         previousSchool: document.getElementById('previousSchool').value || '',
+        educationLevel: document.getElementById('educationLevel').value,
+        yearLevel: document.getElementById('yearLevel').value,
+        strandCourse: document.getElementById('strandCourse').value,
         enrollmentDate: Date.now(),
         status: 'pending',
         applicationStatus: 'Pending Review'
     };
-    if(!data.fullName || !data.email) return showToast('Fill required fields', 'error');
+    if(!data.fullName || !data.email || !data.educationLevel || !data.yearLevel || !data.strandCourse) {
+        return showToast('Fill all required fields', 'error');
+    }
     showLoading('Submitting registration...');
     try {
         await applicationsRef.push().set(data);
@@ -154,7 +199,7 @@ document.getElementById('enrollmentForm')?.addEventListener('submit', async (e) 
     finally { hideLoading(); }
 });
 
-// ==================== SUBJECT SELECTION FOR ENROLLMENT ====================
+// ==================== SUBJECT SELECTION (After Approval) ====================
 async function loadAvailableSubjectsForStudent() {
     if(!currentApplication || currentApplication.status !== 'approved') return;
     
@@ -164,7 +209,6 @@ async function loadAvailableSubjectsForStudent() {
         const course = currentApplication.strandCourse;
         const year = currentApplication.yearLevel;
         
-        // Query subjects from catalog
         const subjectsSnapshot = await subjectsRef.once('value');
         const subjectsList = [];
         subjectsSnapshot.forEach(snap => {
@@ -174,13 +218,18 @@ async function loadAvailableSubjectsForStudent() {
                     id: snap.key,
                     name: subject.name,
                     units: subject.units,
-                    semester: subject.semester
+                    semester: subject.semester,
+                    price: subject.price || 0
                 });
             }
         });
         availableSubjects = subjectsList;
         
-        // Display subjects in the enrollment tab for selection
+        // Calculate total tuition
+        let totalTuition = 0;
+        availableSubjects.forEach(s => totalTuition += s.price);
+        document.getElementById('totalTuitionDisplay').innerHTML = `<strong>Total Tuition: ₱${totalTuition.toLocaleString()}</strong>`;
+        
         displaySubjectSelection();
     } catch(e) { console.error(e); }
     finally { hideLoading(); }
@@ -195,7 +244,6 @@ function displaySubjectSelection() {
         return;
     }
     
-    // Group by semester
     const semesterMap = new Map();
     availableSubjects.forEach(subj => {
         if(!semesterMap.has(subj.semester)) semesterMap.set(subj.semester, []);
@@ -210,30 +258,51 @@ function displaySubjectSelection() {
             html += `
                 <div class="subject-item">
                     <input type="checkbox" id="subj_${subj.id}" ${isSelected ? 'checked' : ''} 
-                           onchange="toggleSubjectSelection('${subj.id}', '${subj.name}', '${subj.units}', '${subj.semester}')">
-                    <label for="subj_${subj.id}"><strong>${subj.name}</strong> (${subj.units} units)</label>
+                           data-id="${subj.id}" data-name="${subj.name}" data-units="${subj.units}" 
+                           data-price="${subj.price}" data-semester="${subj.semester}"
+                           onchange="toggleSubjectSelection(this)">
+                    <label for="subj_${subj.id}"><strong>${subj.name}</strong> (${subj.units} units) - ₱${subj.price.toLocaleString()}</label>
                 </div>
             `;
         });
         html += `</div>`;
     });
     html += `</div>
-             <button id="saveEnrollmentSubjectsBtn" class="btn btn-success" style="margin-top:20px;">
-                 <i class="fas fa-save"></i> Save Subject Enrollment
-             </button>`;
+             <div style="margin-top:20px; padding:15px; background:#e8f4fd; border-radius:10px;">
+                 <p id="selectedTotalDisplay">Selected subjects total: ₱0</p>
+                 <button id="saveEnrollmentSubjectsBtn" class="btn btn-success" style="margin-top:10px;">
+                     <i class="fas fa-save"></i> Enroll in Selected Subjects
+                 </button>
+             </div>`;
     subjectsContainer.innerHTML = html;
     
-    // Attach event listener
+    updateSelectedTotal();
     document.getElementById('saveEnrollmentSubjectsBtn')?.addEventListener('click', saveEnrollmentSubjects);
 }
 
-window.toggleSubjectSelection = function(subjectId, subjectName, units, semester) {
+function updateSelectedTotal() {
+    let total = 0;
+    selectedSubjects.forEach(s => total += s.price);
+    const totalDisplay = document.getElementById('selectedTotalDisplay');
+    if(totalDisplay) totalDisplay.innerHTML = `Selected subjects total: ₱${total.toLocaleString()}`;
+}
+
+window.toggleSubjectSelection = function(checkbox) {
+    const subjectId = checkbox.dataset.id;
+    const subjectData = {
+        id: subjectId,
+        name: checkbox.dataset.name,
+        units: checkbox.dataset.units,
+        price: parseFloat(checkbox.dataset.price),
+        semester: checkbox.dataset.semester
+    };
     const index = selectedSubjects.findIndex(s => s.id === subjectId);
     if(index === -1) {
-        selectedSubjects.push({ id: subjectId, name: subjectName, units: units, semester: semester });
+        selectedSubjects.push(subjectData);
     } else {
         selectedSubjects.splice(index, 1);
     }
+    updateSelectedTotal();
 };
 
 async function saveEnrollmentSubjects() {
@@ -245,6 +314,9 @@ async function saveEnrollmentSubjects() {
     
     showLoading('Saving enrollment...');
     try {
+        let totalFee = 0;
+        selectedSubjects.forEach(s => totalFee += s.price);
+        
         const enrollmentData = {
             userId: currentUser.uid,
             studentName: currentApplication.fullName,
@@ -255,13 +327,14 @@ async function saveEnrollmentSubjects() {
             term: 'Trimester 1',
             schoolYear: '2025-2026',
             status: 'active',
+            totalFee: totalFee,
+            amountPaid: 0,
+            balance: totalFee,
             enrollmentDate: Date.now()
         };
         
-        // Check if enrollment already exists
         const existingEnrollment = await enrollmentsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
         if(existingEnrollment.exists()) {
-            // Update existing
             existingEnrollment.forEach(async snap => {
                 await enrollmentsRef.child(snap.key).update(enrollmentData);
             });
@@ -269,14 +342,114 @@ async function saveEnrollmentSubjects() {
             await enrollmentsRef.push().set(enrollmentData);
         }
         
-        showToast('Subjects enrolled successfully!', 'success');
-        await loadStudentData(); // Refresh to show My Enrollment tab
-        document.querySelector('.nav-item[data-tab="myEnrollment"]')?.click();
+        // Update student as enrolled
+        const studentSnapshot = await studentsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
+        studentSnapshot.forEach(async snap => {
+            await studentsRef.child(snap.key).child('isEnrolled').setValue(true);
+            await studentsRef.child(snap.key).child('enrolledSubjects').setValue(selectedSubjects);
+        });
+        
+        showToast('Enrollment successful! Please upload payment receipt.', 'success');
+        await loadStudentData();
+        document.querySelector('.nav-item[data-tab="payment"]').click();
     } catch(e) {
         showToast('Error: ' + e.message, 'error');
     } finally {
         hideLoading();
     }
+}
+
+// ==================== PAYMENT RECEIPT UPLOAD ====================
+let currentReceiptFile = null;
+
+document.getElementById('uploadReceiptBtn')?.addEventListener('click', () => {
+    document.getElementById('receiptUpload').click();
+});
+
+document.getElementById('receiptUpload')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file || !currentUser) return;
+    currentReceiptFile = file;
+    document.getElementById('receiptFileName').innerHTML = `<i class="fas fa-file"></i> ${file.name}`;
+});
+
+document.getElementById('submitReceiptBtn')?.addEventListener('click', async () => {
+    if(!currentReceiptFile) {
+        showToast('Please select a receipt image first', 'error');
+        return;
+    }
+    if(!currentEnrollment) {
+        showToast('No enrollment found', 'error');
+        return;
+    }
+    
+    showLoading('Uploading receipt...');
+    try {
+        const storageRef = storage.ref(`receipts/${currentUser.uid}/${Date.now()}_receipt`);
+        await storageRef.put(currentReceiptFile);
+        const receiptUrl = await storageRef.getDownloadURL();
+        
+        await paymentsRef.push().set({
+            userId: currentUser.uid,
+            studentName: currentApplication?.fullName,
+            enrollmentId: currentEnrollment.id,
+            amount: currentEnrollment.totalFee,
+            receiptUrl: receiptUrl,
+            status: 'pending_verification',
+            submittedAt: Date.now()
+        });
+        
+        showToast('Payment receipt submitted! Awaiting admin verification.', 'success');
+        document.getElementById('receiptFileName').innerHTML = '';
+        currentReceiptFile = null;
+        document.getElementById('receiptUpload').value = '';
+        
+        await loadStudentData();
+    } catch(e) {
+        showToast('Upload failed: ' + e.message, 'error');
+    } finally {
+        hideLoading();
+    }
+});
+
+// ==================== MY ENROLLMENT TAB ====================
+function displayMyEnrollment() {
+    const container = document.getElementById('myEnrollmentList');
+    if(!container) return;
+    
+    if(!currentEnrollment) {
+        container.innerHTML = '<p>No active enrollment. Please select subjects first.</p>';
+        return;
+    }
+    
+    let subjectsHtml = '<div class="subjects-grid">';
+    if(currentEnrollment.subjects && currentEnrollment.subjects.length > 0) {
+        currentEnrollment.subjects.forEach(subj => {
+            subjectsHtml += `
+                <div class="subject-item">
+                    <i class="fas fa-book"></i>
+                    <div><strong>${subj.name}</strong><br><small>${subj.units} units | ₱${subj.price.toLocaleString()}</small></div>
+                </div>
+            `;
+        });
+    }
+    subjectsHtml += '</div>';
+    
+    const paymentStatus = currentEnrollment.amountPaid >= currentEnrollment.totalFee ? 'Fully Paid' : 
+                          (currentEnrollment.amountPaid > 0 ? 'Partial' : 'Unpaid');
+    
+    container.innerHTML = `
+        <div class="card">
+            <h3>Current Term: ${currentEnrollment.term || 'Trimester 1'} (${currentEnrollment.schoolYear || '2025-2026'})</h3>
+            ${subjectsHtml}
+            <div style="margin-top:20px; padding:15px; background:#f0f8ff; border-radius:10px;">
+                <p><strong>Total Tuition:</strong> ₱${(currentEnrollment.totalFee || 0).toLocaleString()}</p>
+                <p><strong>Amount Paid:</strong> ₱${(currentEnrollment.amountPaid || 0).toLocaleString()}</p>
+                <p><strong>Balance:</strong> ₱${(currentEnrollment.balance || currentEnrollment.totalFee || 0).toLocaleString()}</p>
+                <p><strong>Payment Status:</strong> <span class="${paymentStatus === 'Fully Paid' ? 'grade-pass' : 'grade-fail'}">${paymentStatus}</span></p>
+            </div>
+        </div>
+    `;
 }
 
 // ==================== LOAD STUDENT DASHBOARD ====================
@@ -289,16 +462,16 @@ async function loadStudentData() {
         document.getElementById('profileName').innerText = userName;
         document.getElementById('welcomeName').innerText = userName;
         
-        // Get application
         const appSnap = await applicationsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
         const enrollmentSnap = await enrollmentsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
         
-        // Load enrollment if exists
         if(enrollmentSnap.exists()) {
             enrollmentSnap.forEach(snap => {
                 currentEnrollment = snap.val();
                 currentEnrollment.id = snap.key;
             });
+        } else {
+            currentEnrollment = null;
         }
         
         if(appSnap.exists()) {
@@ -308,77 +481,68 @@ async function loadStudentData() {
             });
             
             const status = currentApplication.status;
-            document.getElementById('profileStatus').innerText = status === 'approved' ? 'ENROLLED' : 'PENDING';
-            document.getElementById('profileStatus').className = `profile-status ${status === 'approved' ? 'status-approved' : 'status-pending'}`;
-            
-            const dashboardInfo = document.getElementById('dashboardInfo');
             if(status === 'approved') {
-                dashboardInfo.innerHTML = `
+                document.getElementById('profileStatus').innerText = 'APPROVED - Ready to Enroll';
+                document.getElementById('profileStatus').className = 'profile-status status-approved';
+                
+                document.getElementById('dashboardInfo').innerHTML = `
                     <div class="enrollment-summary" style="background:#d4edda; padding:20px; border-radius:10px;">
-                        <p><strong>✅ Status: ENROLLED</strong></p>
+                        <p><strong>✅ Application Approved!</strong></p>
                         <p>Education Level: ${currentApplication.educationLevel || 'N/A'}</p>
                         <p>Year Level: ${currentApplication.yearLevel || 'N/A'}</p>
                         <p>Course/Strand: ${currentApplication.strandCourse || 'N/A'}</p>
-                        <p>You can now select your subjects for the current term.</p>
+                        <p style="margin-top:10px;">Please go to the <strong>Enrollment tab</strong> to select your subjects.</p>
                     </div>
                 `;
-                
-                // Show Enrollment Nav Item (for subject selection)
                 document.getElementById('enrollmentNavItem').style.display = 'flex';
                 document.getElementById('myEnrollmentNavItem').style.display = 'flex';
-                
-                // Load available subjects for selection
+                document.getElementById('paymentNavItem').style.display = 'flex';
                 await loadAvailableSubjectsForStudent();
-                
-                // Display enrolled subjects in My Enrollment tab
-                if(currentEnrollment && currentEnrollment.subjects) {
-                    displayEnrolledSubjects(currentEnrollment.subjects);
-                }
-            } else {
-                dashboardInfo.innerHTML = `<div class="enrollment-summary" style="background:#fff3cd; padding:20px; border-radius:10px;">
-                    <p><strong>⏳ Status: PENDING REVIEW</strong></p>
-                    <p>Your registration is being processed. Please wait for admin approval.</p>
-                </div>`;
+                displayMyEnrollment();
+            } 
+            else if(status === 'pending') {
+                document.getElementById('profileStatus').innerText = 'PENDING REVIEW';
+                document.getElementById('profileStatus').className = 'profile-status status-pending';
+                document.getElementById('dashboardInfo').innerHTML = `
+                    <div class="enrollment-summary" style="background:#fff3cd; padding:20px; border-radius:10px;">
+                        <p><strong>⏳ Application Pending</strong></p>
+                        <p>Your application is being reviewed by the admin.</p>
+                    </div>
+                `;
                 document.getElementById('enrollmentNavItem').style.display = 'none';
                 document.getElementById('myEnrollmentNavItem').style.display = 'none';
+                document.getElementById('paymentNavItem').style.display = 'none';
+            }
+            else if(status === 'enrolled' || (currentEnrollment && currentEnrollment.status === 'active')) {
+                document.getElementById('profileStatus').innerText = 'ENROLLED';
+                document.getElementById('profileStatus').className = 'profile-status status-approved';
+                document.getElementById('dashboardInfo').innerHTML = `
+                    <div class="enrollment-summary" style="background:#d4edda; padding:20px; border-radius:10px;">
+                        <p><strong>✅ You are officially ENROLLED!</strong></p>
+                        <p>Your subjects and payment details are in the My Enrollment tab.</p>
+                    </div>
+                `;
+                document.getElementById('enrollmentNavItem').style.display = 'none';
+                document.getElementById('myEnrollmentNavItem').style.display = 'flex';
+                document.getElementById('paymentNavItem').style.display = 'flex';
+                displayMyEnrollment();
             }
         } else {
             document.getElementById('profileStatus').innerText = 'NOT ENROLLED';
+            document.getElementById('profileStatus').className = 'profile-status status-pending';
             document.getElementById('dashboardInfo').innerHTML = '<p>Please complete the Registration form.</p>';
             document.getElementById('enrollmentNavItem').style.display = 'flex';
             document.getElementById('myEnrollmentNavItem').style.display = 'none';
+            document.getElementById('paymentNavItem').style.display = 'none';
         }
         
         await loadGrades();
-        await loadDocuments();
+        await loadPaymentHistory();
         
     } catch(e) { console.error(e); } 
     finally { hideLoading(); }
 }
 
-function displayEnrolledSubjects(subjects) {
-    const container = document.getElementById('myEnrollmentList');
-    if(!container) return;
-    
-    if(!subjects || subjects.length === 0) {
-        container.innerHTML = '<p>No subjects enrolled yet. Please select subjects from the Enrollment tab.</p>';
-        return;
-    }
-    
-    let html = '<div class="subjects-grid">';
-    subjects.forEach(subj => {
-        html += `
-            <div class="subject-item">
-                <i class="fas fa-book"></i>
-                <div><strong>${subj.name}</strong><br><small>${subj.units} units | ${subj.semester || 'Trimester 1'}</small></div>
-            </div>
-        `;
-    });
-    html += '</div>';
-    container.innerHTML = html;
-}
-
-// ==================== GRADES ====================
 async function loadGrades() {
     if(!currentUser) return;
     const gradesSnapshot = await gradesRef.orderByChild('studentId').equalTo(currentUser.uid).once('value');
@@ -390,16 +554,20 @@ async function loadGrades() {
     
     if(gradesList.length > 0) {
         let passed = 0, failed = 0;
-        let html = '<div style="background:#f8f9fa; padding:10px; border-radius:8px; margin-bottom:10px;"><div style="display:flex; justify-content:space-between; font-weight:bold;"><div>Subject</div><div>Grade</div><div>Remarks</div></div></div>';
+        let html = '<div style="background:#f8f9fa; padding:10px; border-radius:8px; margin-bottom:10px;"><div style="display:flex; justify-content:space-between; font-weight:bold;"><div>Subject</div><div>Prelim</div><div>Midterm</div><div>Finals</div><div>Average</div><div>Grade</div><div>Remarks</div></div></div>';
         
         gradesList.forEach(g => {
             html += `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee;">
                 <div><strong>${g.subject}</strong></div>
-                <div>${g.numericalGrade}% (${g.letterGrade})</div>
-                <div class="${g.remarks === 'PASSED' ? 'grade-pass' : 'grade-fail'}">${g.remarks}</div>
+                <div>${g.prelim || '-'}%</div>
+                <div>${g.midterm || '-'}%</div>
+                <div>${g.finals || '-'}%</div>
+                <div>${g.numericalGrade ? g.numericalGrade.toFixed(2) : '-'}%</div>
+                <div>${g.letterGrade || '-'}</div>
+                <div class="${g.remarks === 'PASSED' ? 'grade-pass' : 'grade-fail'}">${g.remarks || '-'}</div>
             </div>`;
             if(g.remarks === 'PASSED') passed++;
-            else failed++;
+            else if(g.remarks === 'FAILED') failed++;
         });
         
         gradesContainer.innerHTML = html;
@@ -412,52 +580,73 @@ async function loadGrades() {
     }
 }
 
-// ==================== DOCUMENTS ====================
-async function loadDocuments() {
-    if(!currentApplication) return;
-    const torStatus = document.getElementById('torStatus');
-    const moralStatus = document.getElementById('moralStatus');
-    if(torStatus && currentApplication.torFile) {
-        torStatus.innerText = 'Uploaded';
-        torStatus.className = 'document-status doc-uploaded';
-    }
-    if(moralStatus && currentApplication.goodMoralFile) {
-        moralStatus.innerText = 'Uploaded';
-        moralStatus.className = 'document-status doc-uploaded';
+async function loadPaymentHistory() {
+    if(!currentUser) return;
+    const paymentsSnapshot = await paymentsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
+    const paymentContainer = document.getElementById('paymentInfo');
+    
+    if(paymentsSnapshot.exists()) {
+        let html = '<div class="card"><h3>Payment History</h3>';
+        paymentsSnapshot.forEach(snap => {
+            const payment = snap.val();
+            html += `
+                <div style="padding:10px; border-bottom:1px solid #eee;">
+                    <p><strong>Amount:</strong> ₱${payment.amount.toLocaleString()}</p>
+                    <p><strong>Status:</strong> ${payment.status}</p>
+                    <p><strong>Submitted:</strong> ${new Date(payment.submittedAt).toLocaleDateString()}</p>
+                    ${payment.receiptUrl ? `<a href="${payment.receiptUrl}" target="_blank">View Receipt</a>` : ''}
+                </div>
+            `;
+        });
+        html += '</div>';
+        paymentContainer.innerHTML = html;
+    } else {
+        paymentContainer.innerHTML = `
+            <div class="card">
+                <h3>Payment Upload</h3>
+                <p>Please upload your payment receipt to complete enrollment.</p>
+                <div class="form-group">
+                    <div class="file-attachment" onclick="document.getElementById('receiptUpload').click()">
+                        <i class="fas fa-cloud-upload-alt"></i> Click to upload payment receipt
+                    </div>
+                    <input type="file" id="receiptUpload" style="display:none;" accept="image/*,.pdf">
+                    <div id="receiptFileName" class="file-list"></div>
+                </div>
+                <button id="submitReceiptBtn" class="btn btn-success">Submit Payment Receipt</button>
+                <div id="paymentMessage"></div>
+            </div>
+        `;
+        // Re-attach event listeners
+        document.getElementById('uploadReceiptBtn')?.addEventListener('click', () => document.getElementById('receiptUpload').click());
+        document.getElementById('receiptUpload')?.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if(file) document.getElementById('receiptFileName').innerHTML = `<i class="fas fa-file"></i> ${file.name}`;
+        });
+        document.getElementById('submitReceiptBtn')?.addEventListener('click', async () => {
+            const file = document.getElementById('receiptUpload').files[0];
+            if(!file) { showToast('Select a receipt', 'error'); return; }
+            showLoading('Uploading...');
+            try {
+                const storageRef = storage.ref(`receipts/${currentUser.uid}/${Date.now()}_receipt`);
+                await storageRef.put(file);
+                const url = await storageRef.getDownloadURL();
+                await paymentsRef.push().set({
+                    userId: currentUser.uid,
+                    studentName: currentApplication?.fullName,
+                    amount: currentEnrollment?.totalFee || 0,
+                    receiptUrl: url,
+                    status: 'pending_verification',
+                    submittedAt: Date.now()
+                });
+                showToast('Receipt submitted!', 'success');
+                document.getElementById('receiptUpload').value = '';
+                document.getElementById('receiptFileName').innerHTML = '';
+                await loadPaymentHistory();
+            } catch(e) { showToast('Upload failed', 'error'); }
+            finally { hideLoading(); }
+        });
     }
 }
-
-let currentDocType = null;
-document.getElementById('uploadTorBtn')?.addEventListener('click', () => {
-    currentDocType = 'tor';
-    document.getElementById('docUpload').click();
-});
-document.getElementById('uploadMoralBtn')?.addEventListener('click', () => {
-    currentDocType = 'moral';
-    document.getElementById('docUpload').click();
-});
-document.getElementById('docUpload')?.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if(!file || !currentUser || !currentApplication) return;
-    showLoading('Uploading...');
-    try {
-        const storageRef = storage.ref(`documents/${currentUser.uid}/${currentDocType}_${Date.now()}`);
-        await storageRef.put(file);
-        const url = await storageRef.getDownloadURL();
-        const update = {};
-        if(currentDocType === 'tor') {
-            update.torFile = url;
-            update.torStatus = 'uploaded';
-        } else {
-            update.goodMoralFile = url;
-            update.goodMoralStatus = 'uploaded';
-        }
-        await applicationsRef.child(currentApplication.id).update(update);
-        showToast('Document uploaded!', 'success');
-        await loadDocuments();
-    } catch(err) { showToast('Upload failed', 'error'); }
-    finally { hideLoading(); }
-});
 
 // ==================== AUTH STATE ====================
 auth.onAuthStateChanged(async (user) => {
@@ -470,11 +659,15 @@ auth.onAuthStateChanged(async (user) => {
     } else {
         currentUser = null;
         currentApplication = null;
+        currentEnrollment = null;
         document.getElementById('authSection').style.display = 'block';
         document.getElementById('studentPortal').style.display = 'none';
         document.getElementById('logoutBtn').style.display = 'none';
     }
 });
 
-// Payment info placeholder
-document.getElementById('paymentInfo').innerHTML = '<p>Payment details will be available after enrollment.</p>';
+// Initialize form options
+document.addEventListener('DOMContentLoaded', () => {
+    updateYearLevelOptions();
+    updateCourseOptions();
+});

@@ -16,726 +16,465 @@ const storage = firebase.storage();
 let studentsRef = database.ref('students');
 let usersRef = database.ref('users');
 let applicationsRef = database.ref('applications');
+let enrollmentsRef = database.ref('enrollments');
+let subjectsRef = database.ref('subjects');
+let coursesRef = database.ref('courses');
 let gradesRef = database.ref('grades');
 let currentUser = null;
 let currentApplication = null;
-let selectedDocFile = null;
-let currentDocType = null;
-let currentSubjects = [];
-let totalFee = 0;
+let currentEnrollment = null;
+let availableSubjects = [];
+let selectedSubjects = [];
 
-// DISABLE AUTO-LOGIN - Clear any existing auth state on page load
-auth.signOut().then(() => {
-    console.log("Auto-login disabled - user signed out");
-}).catch(() => {});
+auth.signOut().then(() => console.log("Auto-login disabled")).catch(()=>{});
 
-// Splash Screen and Loading Functions
-function hideSplashAndShowApp() {
-    const splash = document.getElementById('splashScreen');
-    const mainContainer = document.getElementById('mainContainer');
-    if (splash && mainContainer) {
-        splash.style.opacity = '0';
-        setTimeout(() => {
-            splash.style.display = 'none';
-            mainContainer.style.display = 'block';
-        }, 500);
-    }
+// Loading Functions
+function showLoading(msg) { 
+    const el = document.getElementById('loadingOverlay'); 
+    const textEl = document.getElementById('loadingText');
+    if(textEl) textEl.innerText = msg;
+    if(el) el.style.display = 'flex'; 
+}
+function hideLoading() { 
+    const el = document.getElementById('loadingOverlay'); 
+    if(el) el.style.display = 'none'; 
 }
 
-function showLoading(message = 'Processing...') {
-    const overlay = document.getElementById('loadingOverlay');
-    const text = document.getElementById('loadingText');
-    if (overlay) {
-        if (text) text.innerText = message;
-        overlay.style.display = 'flex';
-    }
-}
-
-function hideLoading() {
-    const overlay = document.getElementById('loadingOverlay');
-    if (overlay) {
-        overlay.style.display = 'none';
-    }
-}
-
-// Hide splash after 2 seconds
-setTimeout(() => {
-    hideSplashAndShowApp();
-}, 2000);
-
-// Price configuration
-const TUITION_FEES = {
-    SHS: { perSubject: 1500, baseFee: 5000 },
-    College: { perSubject: 2000, baseFee: 8000 }
-};
-
-// Subject Data
-const SUBJECTS = {
-    SHS_G11: [
-        { name: "Oral Communication in Context", units: 3, required: true },
-        { name: "Komunikasyon at Pananaliksik sa Wika at Kulturang Pilipino", units: 3, required: true },
-        { name: "General Mathematics", units: 3, required: true },
-        { name: "Earth and Life Science", units: 3, required: true },
-        { name: "Physical Education and Health 1", units: 2, required: true }
-    ],
-    SHS_G12: [
-        { name: "21st Century Literature from the Philippines and the World", units: 3, required: true },
-        { name: "Contemporary Philippine Arts from the Regions", units: 3, required: true },
-        { name: "Media and Information Literacy", units: 3, required: true },
-        { name: "Understanding Culture, Society and Politics", units: 3, required: true },
-        { name: "Physical Education and Health 3", units: 2, required: true }
-    ],
-    College_Y1: [
-        { name: "Understanding the Self", units: 3, required: true },
-        { name: "Readings in Philippine History", units: 3, required: true },
-        { name: "The Contemporary World", units: 3, required: true },
-        { name: "Mathematics in the Modern World", units: 3, required: true },
-        { name: "Physical Education 1", units: 2, required: true },
-        { name: "NSTP 1", units: 3, required: true }
-    ],
-    College_Y2: [
-        { name: "Purposive Communication", units: 3, required: true },
-        { name: "Art Appreciation", units: 3, required: true },
-        { name: "Ethics", units: 3, required: true },
-        { name: "Science, Technology and Society", units: 3, required: true },
-        { name: "Physical Education 2", units: 2, required: true },
-        { name: "NSTP 2", units: 3, required: true }
-    ],
-    College_Y3: [
-        { name: "The Life and Works of Rizal", units: 3, required: true },
-        { name: "Social Science Elective", units: 3, required: true }
-    ],
-    College_Y4: [
-        { name: "Professional Ethics", units: 3, required: true },
-        { name: "Technopreneurship", units: 3, required: true },
-        { name: "Research/Thesis", units: 6, required: true }
-    ]
-};
-
-const STRANDS = {
-    SHS: ["ABM", "STEM", "HUMSS", "GAS", "TVL"],
-    College: ["BSIT", "BSCS", "BSBA", "BSEd", "BSN", "BSA"]
-};
-
-// Simple Alert Function
-function showSimpleAlert(message, type) {
-    const alertDiv = document.createElement('div');
-    alertDiv.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: ${type === 'success' ? '#28a745' : '#dc3545'};
-        color: white;
-        padding: 15px 20px;
-        border-radius: 10px;
-        z-index: 999999;
-        font-family: 'Segoe UI', sans-serif;
-        font-size: 14px;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        animation: slideInAlert 0.3s ease;
-        max-width: 400px;
+function showToast(msg, type) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed; top: 20px; right: 20px; background: ${type === 'success' ? '#28a745' : '#dc3545'};
+        color: white; padding: 15px 20px; border-radius: 10px; z-index: 999999;
+        font-family: 'Segoe UI', sans-serif; font-size: 14px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s ease; max-width: 400px;
     `;
-    alertDiv.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
-            <span>${message}</span>
-        </div>
-    `;
-    
-    if (!document.querySelector('#alertStyles')) {
-        const style = document.createElement('style');
-        style.id = 'alertStyles';
-        style.textContent = `
-            @keyframes slideInAlert {
-                from { transform: translateX(100%); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
-            }
-            @keyframes slideOutAlert {
-                from { transform: translateX(0); opacity: 1; }
-                to { transform: translateX(100%); opacity: 0; }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-    
-    document.body.appendChild(alertDiv);
-    
+    toast.innerHTML = `<div style="display:flex; align-items:center; gap:10px;">
+        <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+        <span>${msg}</span>
+    </div>`;
+    document.body.appendChild(toast);
+    setTimeout(() => { if(toast.parentNode) toast.remove(); }, 4000);
+}
+
+// Splash screen hide
+window.addEventListener('load', () => {
     setTimeout(() => {
-        if (alertDiv.parentNode) {
-            alertDiv.style.animation = 'slideOutAlert 0.3s ease';
-            setTimeout(() => alertDiv.remove(), 300);
+        const splash = document.getElementById('splashScreen');
+        if(splash) {
+            splash.style.opacity = '0';
+            setTimeout(() => {
+                splash.style.display = 'none';
+                document.getElementById('mainContainer').style.display = 'block';
+            }, 500);
         }
-    }, 4000);
+    }, 1500);
+});
+
+// ==================== AUTH ====================
+document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault(); showLoading('Logging in...');
+    try {
+        await auth.signInWithEmailAndPassword(
+            document.getElementById('loginEmail').value,
+            document.getElementById('loginPassword').value
+        );
+        showToast('Login successful!', 'success');
+    } catch (error) { showToast(error.message, 'error'); } 
+    finally { hideLoading(); }
+});
+
+document.getElementById('registerForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pwd = document.getElementById('regPassword').value;
+    const confirm = document.getElementById('regConfirmPassword').value;
+    if(pwd !== confirm) return showToast('Passwords do not match', 'error');
+    showLoading('Creating account...');
+    try {
+        const cred = await auth.createUserWithEmailAndPassword(
+            document.getElementById('regEmail').value, pwd
+        );
+        await usersRef.child(cred.user.uid).set({
+            name: document.getElementById('regName').value,
+            email: document.getElementById('regEmail').value,
+            createdAt: Date.now()
+        });
+        showToast('Registration successful!', 'success');
+    } catch(error) { showToast(error.message, 'error'); } 
+    finally { hideLoading(); }
+});
+
+// ==================== LOGOUT ====================
+document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+    await auth.signOut();
+    location.reload();
+});
+
+// ==================== TAB NAVIGATION ====================
+document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', function() {
+        document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+        this.classList.add('active');
+        const tabId = this.dataset.tab;
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        const targetTab = document.getElementById(`${tabId}Tab`);
+        if(targetTab) targetTab.classList.add('active');
+    });
+});
+
+// ==================== REGISTRATION FORM (Personal Info ONLY) ====================
+document.getElementById('enrollmentForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if(!currentUser) return showToast('Please login', 'error');
+    if(currentApplication) return showToast('Application already submitted', 'error');
     
-    alertDiv.onclick = () => {
-        alertDiv.style.animation = 'slideOutAlert 0.3s ease';
-        setTimeout(() => alertDiv.remove(), 300);
+    const data = {
+        userId: currentUser.uid,
+        fullName: document.getElementById('fullName').value.trim(),
+        dob: document.getElementById('dob').value,
+        gender: document.getElementById('gender').value,
+        email: document.getElementById('email').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        address: document.getElementById('address').value.trim(),
+        parentName: document.getElementById('parentName').value.trim(),
+        parentPhone: document.getElementById('parentPhone').value.trim(),
+        previousSchool: document.getElementById('previousSchool').value || '',
+        enrollmentDate: Date.now(),
+        status: 'pending',
+        applicationStatus: 'Pending Review'
     };
+    if(!data.fullName || !data.email) return showToast('Fill required fields', 'error');
+    showLoading('Submitting registration...');
+    try {
+        await applicationsRef.push().set(data);
+        showToast('Registration submitted! Pending approval.', 'success');
+        document.getElementById('enrollmentForm').reset();
+        await loadStudentData();
+        document.querySelector('.nav-item[data-tab="dashboard"]').click();
+    } catch(e) { showToast('Error: '+e.message, 'error'); } 
+    finally { hideLoading(); }
+});
+
+// ==================== SUBJECT SELECTION FOR ENROLLMENT ====================
+async function loadAvailableSubjectsForStudent() {
+    if(!currentApplication || currentApplication.status !== 'approved') return;
+    
+    showLoading('Loading available subjects...');
+    try {
+        const level = currentApplication.educationLevel;
+        const course = currentApplication.strandCourse;
+        const year = currentApplication.yearLevel;
+        
+        // Query subjects from catalog
+        const subjectsSnapshot = await subjectsRef.once('value');
+        const subjectsList = [];
+        subjectsSnapshot.forEach(snap => {
+            const subject = snap.val();
+            if(subject.level === level && subject.course === course && subject.year === year) {
+                subjectsList.push({
+                    id: snap.key,
+                    name: subject.name,
+                    units: subject.units,
+                    semester: subject.semester
+                });
+            }
+        });
+        availableSubjects = subjectsList;
+        
+        // Display subjects in the enrollment tab for selection
+        displaySubjectSelection();
+    } catch(e) { console.error(e); }
+    finally { hideLoading(); }
 }
 
-// Wait for DOM to be fully loaded
-document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM fully loaded - setting up event listeners");
+function displaySubjectSelection() {
+    const subjectsContainer = document.getElementById('subjectsSelectionContainer');
+    if(!subjectsContainer) return;
     
-    // Tab navigation
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.addEventListener('click', function() {
-            document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-            this.classList.add('active');
-            const tabId = this.dataset.tab;
-            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-            const targetTab = document.getElementById(`${tabId}Tab`);
-            if (targetTab) targetTab.classList.add('active');
-        });
+    if(availableSubjects.length === 0) {
+        subjectsContainer.innerHTML = '<p>No subjects available for your course/level yet. Please contact admin.</p>';
+        return;
+    }
+    
+    // Group by semester
+    const semesterMap = new Map();
+    availableSubjects.forEach(subj => {
+        if(!semesterMap.has(subj.semester)) semesterMap.set(subj.semester, []);
+        semesterMap.get(subj.semester).push(subj);
     });
     
-    // Year level options
-    function updateYearLevels() {
-        const level = document.getElementById('educationLevel');
-        if (!level) return;
-        const yearSelect = document.getElementById('yearLevel');
-        if (!yearSelect) return;
-        yearSelect.innerHTML = '<option value="">Select Year</option>';
-        
-        if (level.value === 'SHS') {
-            yearSelect.innerHTML += '<option value="11">Grade 11</option>';
-            yearSelect.innerHTML += '<option value="12">Grade 12</option>';
-        } else if (level.value === 'College') {
-            for (let i = 1; i <= 4; i++) {
-                let suffix = i === 1 ? "st" : (i === 2 ? "nd" : (i === 3 ? "rd" : "th"));
-                yearSelect.innerHTML += `<option value="${i}">${i}${suffix} Year</option>`;
-            }
-        }
-    }
-    
-    function updateStrandCourse() {
-        const level = document.getElementById('educationLevel');
-        if (!level) return;
-        const strandSelect = document.getElementById('strandCourse');
-        if (!strandSelect) return;
-        strandSelect.innerHTML = '<option value="">Select Strand/Course</option>';
-        
-        const options = level.value === 'SHS' ? STRANDS.SHS : STRANDS.College;
-        options.forEach(opt => {
-            strandSelect.innerHTML += `<option value="${opt}">${opt}</option>`;
-        });
-    }
-    
-    function loadSubjects() {
-        const level = document.getElementById('educationLevel');
-        const year = document.getElementById('yearLevel');
-        if (!level || !year) return;
-        if (!level.value || !year.value) return;
-        
-        let subjectKey = '';
-        if (level.value === 'SHS') {
-            subjectKey = year.value === '11' ? 'SHS_G11' : 'SHS_G12';
-        } else {
-            subjectKey = `College_Y${year.value}`;
-        }
-        
-        const subjects = SUBJECTS[subjectKey] || [];
-        currentSubjects = subjects;
-        
-        const container = document.getElementById('subjectsContainer');
-        if (!container) return;
-        container.innerHTML = '';
-        
-        subjects.forEach((subject, index) => {
-            const div = document.createElement('div');
-            div.className = 'subject-item';
-            div.innerHTML = `
-                <input type="checkbox" id="subj_${index}" checked ${subject.required ? 'disabled' : ''}>
-                <label for="subj_${index}">${subject.name} (${subject.units} units)${subject.required ? ' - Required' : ''}</label>
+    let html = '<div class="subjects-grid">';
+    semesterMap.forEach((subjects, semester) => {
+        html += `<div class="card" style="margin-bottom:20px;"><h4>${semester}</h4>`;
+        subjects.forEach(subj => {
+            const isSelected = selectedSubjects.some(s => s.id === subj.id);
+            html += `
+                <div class="subject-item">
+                    <input type="checkbox" id="subj_${subj.id}" ${isSelected ? 'checked' : ''} 
+                           onchange="toggleSubjectSelection('${subj.id}', '${subj.name}', '${subj.units}', '${subj.semester}')">
+                    <label for="subj_${subj.id}"><strong>${subj.name}</strong> (${subj.units} units)</label>
+                </div>
             `;
-            container.appendChild(div);
         });
-        
-        calculateTotalFee();
-    }
-    
-    function calculateTotalFee() {
-        const levelSelect = document.getElementById('educationLevel');
-        if (!levelSelect) return;
-        const config = TUITION_FEES[levelSelect.value] || TUITION_FEES.College;
-        const subjectCount = currentSubjects.length;
-        
-        totalFee = config.baseFee + (subjectCount * config.perSubject);
-        const totalFeeElement = document.getElementById('totalFee');
-        if (totalFeeElement) {
-            totalFeeElement.innerHTML = `₱${totalFee.toLocaleString()}`;
-        }
-        
-        updatePaymentDetails();
-    }
-    
-    function updatePaymentDetails() {
-        const methodInput = document.getElementById('paymentMethod');
-        const method = methodInput ? methodInput.value : 'full';
-        const details = document.getElementById('paymentDetails');
-        if (!details) return;
-        
-        if (method === 'full') {
-            const discounted = totalFee * 0.9;
-            details.innerHTML = `Full Payment: ₱${discounted.toLocaleString()} (10% discount applied)`;
-        } else if (method === 'installment') {
-            const perPayment = Math.ceil(totalFee / 3);
-            details.innerHTML = `Installment Plan: 3 payments of ₱${perPayment.toLocaleString()} each`;
-        } else {
-            details.innerHTML = `School Pay Later: No upfront payment required. Balance due at end of semester.`;
-        }
-    }
-    
-    // Payment method selection
-    const paymentMethods = document.querySelectorAll('.payment-method');
-    paymentMethods.forEach(el => {
-        el.addEventListener('click', function() {
-            document.querySelectorAll('.payment-method').forEach(m => m.classList.remove('selected'));
-            this.classList.add('selected');
-            const paymentMethodInput = document.getElementById('paymentMethod');
-            if (paymentMethodInput) {
-                paymentMethodInput.value = this.dataset.method;
-            }
-            updatePaymentDetails();
-        });
+        html += `</div>`;
     });
+    html += `</div>
+             <button id="saveEnrollmentSubjectsBtn" class="btn btn-success" style="margin-top:20px;">
+                 <i class="fas fa-save"></i> Save Subject Enrollment
+             </button>`;
+    subjectsContainer.innerHTML = html;
     
-    // Set initial payment method
-    const firstPaymentMethod = document.querySelector('.payment-method');
-    if (firstPaymentMethod) {
-        firstPaymentMethod.classList.add('selected');
-        const paymentMethodInput = document.getElementById('paymentMethod');
-        if (paymentMethodInput) {
-            paymentMethodInput.value = firstPaymentMethod.dataset.method;
-        }
-        updatePaymentDetails();
-    }
-    
-    // Education level change handler
-    const educationLevelSelect = document.getElementById('educationLevel');
-    if (educationLevelSelect) {
-        educationLevelSelect.addEventListener('change', function() {
-            updateYearLevels();
-            updateStrandCourse();
-        });
-    }
-    
-    // Year level change handler
-    const yearLevelSelect = document.getElementById('yearLevel');
-    if (yearLevelSelect) {
-        yearLevelSelect.addEventListener('change', function() {
-            loadSubjects();
-        });
-    }
-    
-    // Initialize
-    updateYearLevels();
-    updateStrandCourse();
-    loadSubjects();
-    
-    // Document upload handlers
-    const uploadTorBtn = document.getElementById('uploadTorBtn');
-    if (uploadTorBtn) {
-        uploadTorBtn.addEventListener('click', () => {
-            currentDocType = 'tor';
-            const docUpload = document.getElementById('docUpload');
-            if (docUpload) docUpload.click();
-        });
-    }
-    
-    const uploadMoralBtn = document.getElementById('uploadMoralBtn');
-    if (uploadMoralBtn) {
-        uploadMoralBtn.addEventListener('click', () => {
-            currentDocType = 'moral';
-            const docUpload = document.getElementById('docUpload');
-            if (docUpload) docUpload.click();
-        });
-    }
-    
-    const docUpload = document.getElementById('docUpload');
-    if (docUpload) {
-        docUpload.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file || !currentUser || !currentApplication) return;
-            
-            showLoading('Uploading document...');
-            try {
-                const storageRef = storage.ref(`documents/${currentUser.uid}/${currentDocType}_${Date.now()}`);
-                await storageRef.put(file);
-                const downloadUrl = await storageRef.getDownloadURL();
-                
-                const updateData = {};
-                if (currentDocType === 'tor') {
-                    updateData.torFile = downloadUrl;
-                    updateData.torStatus = 'uploaded';
-                } else {
-                    updateData.goodMoralFile = downloadUrl;
-                    updateData.goodMoralStatus = 'uploaded';
-                }
-                
-                await applicationsRef.child(currentApplication.id).update(updateData);
-                showSimpleAlert('Document uploaded successfully!', 'success');
-                await loadStudentData();
-            } catch (error) {
-                showSimpleAlert('Upload failed: ' + error.message, 'error');
-            } finally {
-                hideLoading();
-            }
-        });
-    }
-    
-    // Login form - WITH LOADING SCREEN
-    const loginForm = document.getElementById('loginForm');
-    if (loginForm) {
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('loginEmail').value;
-            const password = document.getElementById('loginPassword').value;
-            
-            showLoading('Logging in...');
-            try {
-                await auth.signInWithEmailAndPassword(email, password);
-                showSimpleAlert('Login successful!', 'success');
-                document.getElementById('loginForm').reset();
-            } catch (error) {
-                showSimpleAlert(error.message, 'error');
-            } finally {
-                hideLoading();
-            }
-        });
-    }
-    
-    // Register form - WITH LOADING SCREEN
-    const registerForm = document.getElementById('registerForm');
-    if (registerForm) {
-        registerForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const name = document.getElementById('regName').value;
-            const email = document.getElementById('regEmail').value;
-            const password = document.getElementById('regPassword').value;
-            const confirmPassword = document.getElementById('regConfirmPassword').value;
-            
-            if (password !== confirmPassword) {
-                showSimpleAlert('Passwords do not match!', 'error');
-                return;
-            }
-            
-            showLoading('Creating account...');
-            try {
-                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-                await usersRef.child(userCredential.user.uid).set({
-                    name: name,
-                    email: email,
-                    createdAt: Date.now()
-                });
-                showSimpleAlert('Registration successful! You are now logged in.', 'success');
-                document.getElementById('registerForm').reset();
-            } catch (error) {
-                showSimpleAlert(error.message, 'error');
-            } finally {
-                hideLoading();
-            }
-        });
-    }
-    
-    // Logout
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', async () => {
-            showLoading('Logging out...');
-            await auth.signOut();
-            hideLoading();
-            location.reload();
-        });
-    }
-    
-    // ENROLLMENT FORM SUBMISSION
-    const enrollmentForm = document.getElementById('enrollmentForm');
-    if (enrollmentForm) {
-        enrollmentForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log("Enrollment form submitted");
-            
-            if (!currentUser) {
-                showSimpleAlert('Please login first', 'error');
-                return;
-            }
-            
-            if (currentApplication) {
-                showSimpleAlert('You have already submitted an application. Please wait for approval.', 'error');
-                return;
-            }
-            
-            const selectedSubjects = [];
-            currentSubjects.forEach((subject, index) => {
-                const checkbox = document.getElementById(`subj_${index}`);
-                if (checkbox && checkbox.checked) {
-                    selectedSubjects.push(subject);
-                }
-            });
-            
-            const paymentMethod = document.getElementById('paymentMethod')?.value || 'full';
-            
-            const fullName = document.getElementById('fullName')?.value.trim();
-            const dob = document.getElementById('dob')?.value;
-            const gender = document.getElementById('gender')?.value;
-            const email = document.getElementById('email')?.value.trim();
-            const phone = document.getElementById('phone')?.value.trim();
-            const educationLevel = document.getElementById('educationLevel')?.value;
-            const yearLevel = document.getElementById('yearLevel')?.value;
-            const strandCourse = document.getElementById('strandCourse')?.value;
-            const address = document.getElementById('address')?.value.trim();
-            const parentName = document.getElementById('parentName')?.value.trim();
-            const parentPhone = document.getElementById('parentPhone')?.value.trim();
-            const previousSchool = document.getElementById('previousSchool')?.value;
-            const studentType = document.getElementById('studentType')?.value;
-            
-            if (!fullName || !email) {
-                showSimpleAlert('Please fill in all required fields', 'error');
-                return;
-            }
-            
-            const applicationData = {
-                userId: currentUser.uid,
-                fullName: fullName,
-                dob: dob,
-                gender: gender,
-                email: email,
-                phone: phone,
-                educationLevel: educationLevel,
-                yearLevel: yearLevel,
-                strandCourse: strandCourse,
-                address: address,
-                parentName: parentName,
-                parentPhone: parentPhone,
-                previousSchool: previousSchool || '',
-                studentType: studentType || 'New Student',
-                selectedSubjects: selectedSubjects,
-                paymentMethod: paymentMethod,
-                totalFee: totalFee,
-                enrollmentDate: Date.now(),
-                status: 'pending',
-                applicationStatus: 'Pending Review',
-                createdAt: new Date().toISOString()
-            };
-            
-            console.log("Submitting application:", applicationData);
-            
-            showLoading('Submitting enrollment application...');
-            try {
-                const newAppRef = applicationsRef.push();
-                await newAppRef.set(applicationData);
-                console.log("Application saved with ID:", newAppRef.key);
-                
-                showSimpleAlert('✅ Enrollment submitted successfully! Your application is pending review.', 'success');
-                enrollmentForm.reset();
-                await loadStudentData();
-                
-                setTimeout(() => {
-                    const dashboardNav = document.querySelector('.nav-item[data-tab="dashboard"]');
-                    if (dashboardNav) dashboardNav.click();
-                }, 1500);
-            } catch (error) {
-                console.error('Error saving application:', error);
-                showSimpleAlert('❌ Error: ' + error.message, 'error');
-            } finally {
-                hideLoading();
-            }
-        });
-    }
-});
+    // Attach event listener
+    document.getElementById('saveEnrollmentSubjectsBtn')?.addEventListener('click', saveEnrollmentSubjects);
+}
 
-// AUTH STATE LISTENER - NO AUTO-LOGIN
-let authInitialized = false;
-auth.onAuthStateChanged(async (user) => {
-    console.log("Auth state changed:", user ? "Logged in" : "Logged out");
-    
-    if (user && !authInitialized) {
-        authInitialized = true;
-        currentUser = user;
-        const authSection = document.getElementById('authSection');
-        const studentPortal = document.getElementById('studentPortal');
-        const logoutBtn = document.getElementById('logoutBtn');
-        
-        if (authSection) authSection.style.display = 'none';
-        if (studentPortal) studentPortal.style.display = 'block';
-        if (logoutBtn) logoutBtn.style.display = 'block';
-        
-        await loadStudentData();
-        
-    } else if (!user) {
-        authInitialized = false;
-        currentUser = null;
-        currentApplication = null;
-        const authSection = document.getElementById('authSection');
-        const studentPortal = document.getElementById('studentPortal');
-        const logoutBtn = document.getElementById('logoutBtn');
-        
-        if (authSection) authSection.style.display = 'block';
-        if (studentPortal) studentPortal.style.display = 'none';
-        if (logoutBtn) logoutBtn.style.display = 'none';
+window.toggleSubjectSelection = function(subjectId, subjectName, units, semester) {
+    const index = selectedSubjects.findIndex(s => s.id === subjectId);
+    if(index === -1) {
+        selectedSubjects.push({ id: subjectId, name: subjectName, units: units, semester: semester });
+    } else {
+        selectedSubjects.splice(index, 1);
     }
-});
+};
 
-async function loadStudentData() {
-    console.log("Loading student data for user:", currentUser?.uid);
+async function saveEnrollmentSubjects() {
+    if(!currentUser || !currentApplication) return;
+    if(selectedSubjects.length === 0) {
+        showToast('Please select at least one subject', 'error');
+        return;
+    }
     
-    showLoading('Loading your data...');
+    showLoading('Saving enrollment...');
     try {
-        const userData = await usersRef.child(currentUser.uid).once('value');
-        const userName = userData.val()?.name || 'Student';
-        const profileName = document.getElementById('profileName');
-        const welcomeName = document.getElementById('welcomeName');
-        if (profileName) profileName.innerText = userName;
-        if (welcomeName) welcomeName.innerText = userName;
+        const enrollmentData = {
+            userId: currentUser.uid,
+            studentName: currentApplication.fullName,
+            educationLevel: currentApplication.educationLevel,
+            yearLevel: currentApplication.yearLevel,
+            strandCourse: currentApplication.strandCourse,
+            subjects: selectedSubjects,
+            term: 'Trimester 1',
+            schoolYear: '2025-2026',
+            status: 'active',
+            enrollmentDate: Date.now()
+        };
         
-        const userApp = await applicationsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
-        
-        if (userApp.exists()) {
-            userApp.forEach(snap => {
-                currentApplication = snap.val();
-                currentApplication.id = snap.key;
+        // Check if enrollment already exists
+        const existingEnrollment = await enrollmentsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
+        if(existingEnrollment.exists()) {
+            // Update existing
+            existingEnrollment.forEach(async snap => {
+                await enrollmentsRef.child(snap.key).update(enrollmentData);
             });
-            
-            console.log("Found application:", currentApplication);
-            
-            const profileLevel = document.getElementById('profileLevel');
-            const profileStatus = document.getElementById('profileStatus');
-            if (profileLevel) profileLevel.innerText = `${currentApplication.educationLevel || ''} ${currentApplication.yearLevel || ''}`;
-            if (profileStatus) {
-                if (currentApplication.status === 'approved') {
-                    profileStatus.innerText = 'APPROVED';
-                    profileStatus.className = 'profile-status status-approved';
-                } else if (currentApplication.status === 'pending') {
-                    profileStatus.innerText = 'PENDING REVIEW';
-                    profileStatus.className = 'profile-status status-pending';
-                }
-            }
-            
-            const dashboardInfo = document.getElementById('dashboardInfo');
-            if (dashboardInfo) {
-                if (currentApplication.status === 'approved') {
-                    dashboardInfo.innerHTML = `
-                        <div class="enrollment-summary" style="background: #d4edda; border-left: 4px solid #28a745; padding: 20px; border-radius: 10px;">
-                            <p><strong>✅ Application Status:</strong> APPROVED</p>
-                            <p><strong>Education Level:</strong> ${currentApplication.educationLevel || 'Not set'}</p>
-                            <p><strong>Year Level:</strong> ${currentApplication.yearLevel || 'Not set'}</p>
-                            <p><strong>Strand/Course:</strong> ${currentApplication.strandCourse || 'Not set'}</p>
-                            <p><strong>Enrollment Date:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
-                        </div>
-                    `;
-                } else if (currentApplication.status === 'pending') {
-                    dashboardInfo.innerHTML = `
-                        <div class="enrollment-summary" style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; border-radius: 10px;">
-                            <p><strong>⏳ Application Status:</strong> PENDING REVIEW</p>
-                            <p><strong>Education Level:</strong> ${currentApplication.educationLevel || 'Not set'}</p>
-                            <p><strong>Year Level:</strong> ${currentApplication.yearLevel || 'Not set'}</p>
-                            <p><strong>Strand/Course:</strong> ${currentApplication.strandCourse || 'Not set'}</p>
-                            <p><strong>Enrollment Date:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
-                            <p style="color: #856404; margin-top: 10px;">We are reviewing your application. Please wait for approval.</p>
-                        </div>
-                    `;
-                }
-            }
-            
-            const enrollmentTab = document.getElementById('enrollmentTab');
-            if (enrollmentTab && currentApplication.status === 'pending') {
-                enrollmentTab.innerHTML = `
-                    <div class="card">
-                        <h3><i class="fas fa-clock"></i> Application Pending</h3>
-                        <div class="enrollment-summary" style="background: #fff3cd; text-align: center; padding: 40px; border-radius: 10px;">
-                            <i class="fas fa-hourglass-half" style="font-size: 48px; color: #ffc107; margin-bottom: 20px;"></i>
-                            <h3>Your application is being reviewed</h3>
-                            <p>You have already submitted an enrollment application. Please wait for admin approval.</p>
-                            <p><strong>Submitted on:</strong> ${new Date(currentApplication.enrollmentDate).toLocaleDateString()}</p>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            if (currentApplication.status === 'approved') {
-                await loadGrades();
-            } else {
-                const gradesList = document.getElementById('gradesList');
-                if (gradesList) gradesList.innerHTML = '<p>Grades will be available once your application is approved.</p>';
-            }
-            
-            const torStatus = document.getElementById('torStatus');
-            const moralStatus = document.getElementById('moralStatus');
-            if (torStatus && currentApplication.torFile) {
-                torStatus.innerText = 'Uploaded';
-                torStatus.className = 'document-status doc-uploaded';
-            }
-            if (moralStatus && currentApplication.goodMoralFile) {
-                moralStatus.innerText = 'Uploaded';
-                moralStatus.className = 'document-status doc-uploaded';
-            }
-            
-            const paymentInfo = document.getElementById('paymentInfo');
-            if (paymentInfo) {
-                paymentInfo.innerHTML = `
-                    <div class="enrollment-summary" style="padding: 20px; border-radius: 10px; background: #f8f9fa;">
-                        <p><strong>Total Tuition Fee:</strong> ₱${(currentApplication.totalFee || 0).toLocaleString()}</p>
-                        <p><strong>Payment Method:</strong> ${currentApplication.paymentMethod === 'full' ? 'Full Payment' : (currentApplication.paymentMethod === 'installment' ? 'Installment' : 'School Pay Later')}</p>
-                        <p><strong>Payment Status:</strong> Pending</p>
-                    </div>
-                `;
-            }
         } else {
-            console.log("No application found for user");
-            currentApplication = null;
-            const profileLevel = document.getElementById('profileLevel');
-            const dashboardInfo = document.getElementById('dashboardInfo');
-            
-            if (profileLevel) profileLevel.innerText = 'Not Enrolled';
-            if (dashboardInfo) dashboardInfo.innerHTML = '<p>You haven\'t submitted an enrollment application yet. Please go to the Enrollment tab to register.</p>';
-            
-            const enrollmentNav = document.querySelector('.nav-item[data-tab="enrollment"]');
-            if (enrollmentNav) enrollmentNav.click();
+            await enrollmentsRef.push().set(enrollmentData);
         }
+        
+        showToast('Subjects enrolled successfully!', 'success');
+        await loadStudentData(); // Refresh to show My Enrollment tab
+        document.querySelector('.nav-item[data-tab="myEnrollment"]')?.click();
+    } catch(e) {
+        showToast('Error: ' + e.message, 'error');
     } finally {
         hideLoading();
     }
 }
 
-async function loadGrades() {
-    const grades = await gradesRef.orderByChild('studentId').equalTo(currentUser.uid).once('value');
-    const studentGrades = [];
-    grades.forEach(snap => {
-        studentGrades.push(snap.val());
-    });
+// ==================== LOAD STUDENT DASHBOARD ====================
+async function loadStudentData() {
+    if(!currentUser) return;
+    showLoading('Loading your data...');
+    try {
+        const userSnap = await usersRef.child(currentUser.uid).once('value');
+        const userName = userSnap.val()?.name || 'Student';
+        document.getElementById('profileName').innerText = userName;
+        document.getElementById('welcomeName').innerText = userName;
+        
+        // Get application
+        const appSnap = await applicationsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
+        const enrollmentSnap = await enrollmentsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
+        
+        // Load enrollment if exists
+        if(enrollmentSnap.exists()) {
+            enrollmentSnap.forEach(snap => {
+                currentEnrollment = snap.val();
+                currentEnrollment.id = snap.key;
+            });
+        }
+        
+        if(appSnap.exists()) {
+            appSnap.forEach(snap => {
+                currentApplication = snap.val();
+                currentApplication.id = snap.key;
+            });
+            
+            const status = currentApplication.status;
+            document.getElementById('profileStatus').innerText = status === 'approved' ? 'ENROLLED' : 'PENDING';
+            document.getElementById('profileStatus').className = `profile-status ${status === 'approved' ? 'status-approved' : 'status-pending'}`;
+            
+            const dashboardInfo = document.getElementById('dashboardInfo');
+            if(status === 'approved') {
+                dashboardInfo.innerHTML = `
+                    <div class="enrollment-summary" style="background:#d4edda; padding:20px; border-radius:10px;">
+                        <p><strong>✅ Status: ENROLLED</strong></p>
+                        <p>Education Level: ${currentApplication.educationLevel || 'N/A'}</p>
+                        <p>Year Level: ${currentApplication.yearLevel || 'N/A'}</p>
+                        <p>Course/Strand: ${currentApplication.strandCourse || 'N/A'}</p>
+                        <p>You can now select your subjects for the current term.</p>
+                    </div>
+                `;
+                
+                // Show Enrollment Nav Item (for subject selection)
+                document.getElementById('enrollmentNavItem').style.display = 'flex';
+                document.getElementById('myEnrollmentNavItem').style.display = 'flex';
+                
+                // Load available subjects for selection
+                await loadAvailableSubjectsForStudent();
+                
+                // Display enrolled subjects in My Enrollment tab
+                if(currentEnrollment && currentEnrollment.subjects) {
+                    displayEnrolledSubjects(currentEnrollment.subjects);
+                }
+            } else {
+                dashboardInfo.innerHTML = `<div class="enrollment-summary" style="background:#fff3cd; padding:20px; border-radius:10px;">
+                    <p><strong>⏳ Status: PENDING REVIEW</strong></p>
+                    <p>Your registration is being processed. Please wait for admin approval.</p>
+                </div>`;
+                document.getElementById('enrollmentNavItem').style.display = 'none';
+                document.getElementById('myEnrollmentNavItem').style.display = 'none';
+            }
+        } else {
+            document.getElementById('profileStatus').innerText = 'NOT ENROLLED';
+            document.getElementById('dashboardInfo').innerHTML = '<p>Please complete the Registration form.</p>';
+            document.getElementById('enrollmentNavItem').style.display = 'flex';
+            document.getElementById('myEnrollmentNavItem').style.display = 'none';
+        }
+        
+        await loadGrades();
+        await loadDocuments();
+        
+    } catch(e) { console.error(e); } 
+    finally { hideLoading(); }
+}
+
+function displayEnrolledSubjects(subjects) {
+    const container = document.getElementById('myEnrollmentList');
+    if(!container) return;
     
-    const gradesList = document.getElementById('gradesList');
+    if(!subjects || subjects.length === 0) {
+        container.innerHTML = '<p>No subjects enrolled yet. Please select subjects from the Enrollment tab.</p>';
+        return;
+    }
+    
+    let html = '<div class="subjects-grid">';
+    subjects.forEach(subj => {
+        html += `
+            <div class="subject-item">
+                <i class="fas fa-book"></i>
+                <div><strong>${subj.name}</strong><br><small>${subj.units} units | ${subj.semester || 'Trimester 1'}</small></div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// ==================== GRADES ====================
+async function loadGrades() {
+    if(!currentUser) return;
+    const gradesSnapshot = await gradesRef.orderByChild('studentId').equalTo(currentUser.uid).once('value');
+    const gradesList = [];
+    gradesSnapshot.forEach(snap => gradesList.push(snap.val()));
+    
+    const gradesContainer = document.getElementById('gradesList');
     const gradeSummary = document.getElementById('gradeSummary');
     
-    if (studentGrades.length > 0) {
+    if(gradesList.length > 0) {
         let passed = 0, failed = 0;
-        let gradesHtml = '<div style="background:#f8f9fa; font-weight:bold; padding:10px; display:flex; justify-content:space-between; border-radius:8px; margin-bottom:10px;"><div style="flex:2">Subject</div><div style="flex:1">Numerical</div><div style="flex:1">Letter</div><div style="flex:1">Remarks</div></div>';
+        let html = '<div style="background:#f8f9fa; padding:10px; border-radius:8px; margin-bottom:10px;"><div style="display:flex; justify-content:space-between; font-weight:bold;"><div>Subject</div><div>Grade</div><div>Remarks</div></div></div>';
         
-        studentGrades.forEach(grade => {
-            gradesHtml += `
-                <div style="padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
-                    <div style="flex:2"><strong>${grade.subject}</strong></div>
-                    <div style="flex:1">${grade.numericalGrade}%</div>
-                    <div style="flex:1">${grade.letterGrade}</div>
-                    <div style="flex:1" class="${grade.remarks === 'PASSED' ? 'grade-pass' : 'grade-fail'}">${grade.remarks}</div>
-                </div>
-            `;
-            if (grade.remarks === 'PASSED') passed++;
+        gradesList.forEach(g => {
+            html += `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee;">
+                <div><strong>${g.subject}</strong></div>
+                <div>${g.numericalGrade}% (${g.letterGrade})</div>
+                <div class="${g.remarks === 'PASSED' ? 'grade-pass' : 'grade-fail'}">${g.remarks}</div>
+            </div>`;
+            if(g.remarks === 'PASSED') passed++;
             else failed++;
         });
         
-        if (gradesList) gradesList.innerHTML = gradesHtml;
-        if (gradeSummary) {
-            gradeSummary.innerHTML = `
-                <div style="margin-top:20px; padding: 20px; border-radius: 10px; background: #f8f9fa;">
-                    <p><strong>Summary:</strong> Passed: ${passed} | Failed: ${failed}</p>
-                    <p><strong>Academic Status:</strong> ${failed > 0 ? 'IRREGULAR' : 'REGULAR'}</p>
-                </div>
-            `;
-        }
+        gradesContainer.innerHTML = html;
+        gradeSummary.innerHTML = `<div style="margin-top:20px; padding:15px; background:#f8f9fa; border-radius:10px;">
+            <p><strong>Summary:</strong> Passed: ${passed} | Failed: ${failed}</p>
+            <p><strong>Academic Status:</strong> ${failed > 0 ? 'IRREGULAR' : 'REGULAR'}</p>
+        </div>`;
     } else {
-        if (gradesList) gradesList.innerHTML = '<p>No grades available yet.</p>';
+        gradesContainer.innerHTML = '<p>No grades available yet.</p>';
     }
 }
+
+// ==================== DOCUMENTS ====================
+async function loadDocuments() {
+    if(!currentApplication) return;
+    const torStatus = document.getElementById('torStatus');
+    const moralStatus = document.getElementById('moralStatus');
+    if(torStatus && currentApplication.torFile) {
+        torStatus.innerText = 'Uploaded';
+        torStatus.className = 'document-status doc-uploaded';
+    }
+    if(moralStatus && currentApplication.goodMoralFile) {
+        moralStatus.innerText = 'Uploaded';
+        moralStatus.className = 'document-status doc-uploaded';
+    }
+}
+
+let currentDocType = null;
+document.getElementById('uploadTorBtn')?.addEventListener('click', () => {
+    currentDocType = 'tor';
+    document.getElementById('docUpload').click();
+});
+document.getElementById('uploadMoralBtn')?.addEventListener('click', () => {
+    currentDocType = 'moral';
+    document.getElementById('docUpload').click();
+});
+document.getElementById('docUpload')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file || !currentUser || !currentApplication) return;
+    showLoading('Uploading...');
+    try {
+        const storageRef = storage.ref(`documents/${currentUser.uid}/${currentDocType}_${Date.now()}`);
+        await storageRef.put(file);
+        const url = await storageRef.getDownloadURL();
+        const update = {};
+        if(currentDocType === 'tor') {
+            update.torFile = url;
+            update.torStatus = 'uploaded';
+        } else {
+            update.goodMoralFile = url;
+            update.goodMoralStatus = 'uploaded';
+        }
+        await applicationsRef.child(currentApplication.id).update(update);
+        showToast('Document uploaded!', 'success');
+        await loadDocuments();
+    } catch(err) { showToast('Upload failed', 'error'); }
+    finally { hideLoading(); }
+});
+
+// ==================== AUTH STATE ====================
+auth.onAuthStateChanged(async (user) => {
+    if(user) {
+        currentUser = user;
+        document.getElementById('authSection').style.display = 'none';
+        document.getElementById('studentPortal').style.display = 'block';
+        document.getElementById('logoutBtn').style.display = 'block';
+        await loadStudentData();
+    } else {
+        currentUser = null;
+        currentApplication = null;
+        document.getElementById('authSection').style.display = 'block';
+        document.getElementById('studentPortal').style.display = 'none';
+        document.getElementById('logoutBtn').style.display = 'none';
+    }
+});
+
+// Payment info placeholder
+document.getElementById('paymentInfo').innerHTML = '<p>Payment details will be available after enrollment.</p>';

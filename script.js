@@ -27,14 +27,17 @@ let currentEnrollment = null;
 let availableSubjects = [];
 let selectedSubjects = [];
 
+// Sign out on page load to prevent auto-login
 auth.signOut().then(() => console.log("Auto-login disabled")).catch(()=>{});
 
+// ==================== UI HELPER FUNCTIONS ====================
 function showLoading(msg) { 
     const el = document.getElementById('loadingOverlay'); 
     const textEl = document.getElementById('loadingText');
     if(textEl) textEl.innerText = msg;
     if(el) el.style.display = 'flex'; 
 }
+
 function hideLoading() { 
     const el = document.getElementById('loadingOverlay'); 
     if(el) el.style.display = 'none'; 
@@ -46,7 +49,7 @@ function showToast(msg, type) {
         position: fixed; top: 20px; right: 20px; background: ${type === 'success' ? '#28a745' : '#dc3545'};
         color: white; padding: 15px 20px; border-radius: 10px; z-index: 999999;
         font-family: 'Segoe UI', sans-serif; font-size: 14px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        animation: slideIn 0.3s ease; max-width: 400px;
+        animation: slideIn 0.3s ease; max-width: 400px; cursor: pointer;
     `;
     toast.innerHTML = `<div style="display:flex; align-items:center; gap:10px;">
         <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
@@ -54,8 +57,10 @@ function showToast(msg, type) {
     </div>`;
     document.body.appendChild(toast);
     setTimeout(() => { if(toast.parentNode) toast.remove(); }, 4000);
+    toast.onclick = () => toast.remove();
 }
 
+// Splash screen hide
 window.addEventListener('load', () => {
     setTimeout(() => {
         const splash = document.getElementById('splashScreen');
@@ -70,19 +75,27 @@ window.addEventListener('load', () => {
     }, 1500);
 });
 
-// ==================== AUTH ====================
+// ==================== AUTH FORMS ====================
 const loginForm = document.getElementById('loginForm');
 if(loginForm) {
     loginForm.addEventListener('submit', async (e) => {
-        e.preventDefault(); showLoading('Logging in...');
+        e.preventDefault(); 
+        showLoading('Logging in...');
+        const email = document.getElementById('loginEmail');
+        const password = document.getElementById('loginPassword');
+        if(!email || !password) {
+            hideLoading();
+            return showToast('Please enter email and password', 'error');
+        }
         try {
-            await auth.signInWithEmailAndPassword(
-                document.getElementById('loginEmail').value,
-                document.getElementById('loginPassword').value
-            );
+            await auth.signInWithEmailAndPassword(email.value, password.value);
             showToast('Login successful!', 'success');
-        } catch (error) { showToast(error.message, 'error'); } 
-        finally { hideLoading(); }
+            if(loginForm) loginForm.reset();
+        } catch (error) { 
+            showToast(error.message, 'error');
+        } finally { 
+            hideLoading();
+        }
     });
 }
 
@@ -90,22 +103,28 @@ const registerForm = document.getElementById('registerForm');
 if(registerForm) {
     registerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const pwd = document.getElementById('regPassword').value;
-        const confirm = document.getElementById('regConfirmPassword').value;
-        if(pwd !== confirm) return showToast('Passwords do not match', 'error');
+        const name = document.getElementById('regName');
+        const email = document.getElementById('regEmail');
+        const pwd = document.getElementById('regPassword');
+        const confirm = document.getElementById('regConfirmPassword');
+        if(!name || !email || !pwd || !confirm) return;
+        
+        if(pwd.value !== confirm.value) return showToast('Passwords do not match', 'error');
         showLoading('Creating account...');
         try {
-            const cred = await auth.createUserWithEmailAndPassword(
-                document.getElementById('regEmail').value, pwd
-            );
+            const cred = await auth.createUserWithEmailAndPassword(email.value, pwd.value);
             await usersRef.child(cred.user.uid).set({
-                name: document.getElementById('regName').value,
-                email: document.getElementById('regEmail').value,
+                name: name.value,
+                email: email.value,
                 createdAt: Date.now()
             });
             showToast('Registration successful!', 'success');
-        } catch(error) { showToast(error.message, 'error'); } 
-        finally { hideLoading(); }
+            if(registerForm) registerForm.reset();
+        } catch(error) { 
+            showToast(error.message, 'error');
+        } finally { 
+            hideLoading();
+        }
     });
 }
 
@@ -183,25 +202,36 @@ if(enrollmentForm) {
         if(!currentUser) return showToast('Please login', 'error');
         if(currentApplication) return showToast('Application already submitted', 'error');
         
+        const fullName = document.getElementById('fullName');
+        const dob = document.getElementById('dob');
+        const gender = document.getElementById('gender');
+        const email = document.getElementById('email');
+        const phone = document.getElementById('phone');
+        const address = document.getElementById('address');
+        const parentName = document.getElementById('parentName');
+        const parentPhone = document.getElementById('parentPhone');
+        const previousSchool = document.getElementById('previousSchool');
         const educationLevel = document.getElementById('educationLevel');
         const yearLevel = document.getElementById('yearLevel');
         const strandCourse = document.getElementById('strandCourse');
         
+        if(!fullName || !fullName.value) return showToast('Please enter full name', 'error');
+        if(!email || !email.value) return showToast('Please enter email', 'error');
         if(!educationLevel || !educationLevel.value) return showToast('Please select Education Level', 'error');
         if(!yearLevel || !yearLevel.value) return showToast('Please select Year Level', 'error');
         if(!strandCourse || !strandCourse.value) return showToast('Please select Course/Strand', 'error');
         
         const data = {
             userId: currentUser.uid,
-            fullName: document.getElementById('fullName').value.trim(),
-            dob: document.getElementById('dob').value,
-            gender: document.getElementById('gender').value,
-            email: document.getElementById('email').value.trim(),
-            phone: document.getElementById('phone').value.trim(),
-            address: document.getElementById('address').value.trim(),
-            parentName: document.getElementById('parentName').value.trim(),
-            parentPhone: document.getElementById('parentPhone').value.trim(),
-            previousSchool: document.getElementById('previousSchool').value || '',
+            fullName: fullName.value.trim(),
+            dob: dob ? dob.value : '',
+            gender: gender ? gender.value : '',
+            email: email.value.trim(),
+            phone: phone ? phone.value.trim() : '',
+            address: address ? address.value.trim() : '',
+            parentName: parentName ? parentName.value.trim() : '',
+            parentPhone: parentPhone ? parentPhone.value.trim() : '',
+            previousSchool: previousSchool ? previousSchool.value.trim() : '',
             educationLevel: educationLevel.value,
             yearLevel: yearLevel.value,
             strandCourse: strandCourse.value,
@@ -209,7 +239,7 @@ if(enrollmentForm) {
             status: 'pending',
             applicationStatus: 'Pending Review'
         };
-        if(!data.fullName || !data.email) return showToast('Fill all required fields', 'error');
+        
         showLoading('Submitting registration...');
         try {
             await applicationsRef.push().set(data);
@@ -218,14 +248,21 @@ if(enrollmentForm) {
             await loadStudentData();
             const dashboardNav = document.querySelector('.nav-item[data-tab="dashboard"]');
             if(dashboardNav) dashboardNav.click();
-        } catch(e) { showToast('Error: '+e.message, 'error'); } 
-        finally { hideLoading(); }
+        } catch(e) { 
+            showToast('Error: '+e.message, 'error');
+        } finally { 
+            hideLoading();
+        }
     });
 }
 
 // ==================== SUBJECT SELECTION (After Approval) ====================
 async function loadAvailableSubjectsForStudent() {
-    if(!currentApplication || currentApplication.status !== 'approved') return;
+    if(!currentApplication) return;
+    if(currentApplication.status !== 'approved' && currentApplication.status !== 'Approved') {
+        console.log("Not approved yet, status:", currentApplication.status);
+        return;
+    }
     
     showLoading('Loading available subjects...');
     try {
@@ -237,7 +274,7 @@ async function loadAvailableSubjectsForStudent() {
         const subjectsList = [];
         subjectsSnapshot.forEach(snap => {
             const subject = snap.val();
-            if(subject.level === level && subject.course === course && subject.year === year) {
+            if(subject && subject.level === level && subject.course === course && subject.year === year) {
                 subjectsList.push({
                     id: snap.key,
                     name: subject.name,
@@ -254,8 +291,11 @@ async function loadAvailableSubjectsForStudent() {
         if(subjectCard) subjectCard.style.display = 'block';
         
         displaySubjectSelection();
-    } catch(e) { console.error(e); }
-    finally { hideLoading(); }
+    } catch(e) { 
+        console.error(e);
+    } finally { 
+        hideLoading();
+    }
 }
 
 function displaySubjectSelection() {
@@ -267,6 +307,7 @@ function displaySubjectSelection() {
         return;
     }
     
+    // Group by semester
     const semesterMap = new Map();
     availableSubjects.forEach(subj => {
         if(!semesterMap.has(subj.semester)) semesterMap.set(subj.semester, []);
@@ -366,6 +407,7 @@ async function saveEnrollmentSubjects() {
             await enrollmentsRef.push().set(enrollmentData);
         }
         
+        // Update student as enrolled
         const studentSnapshot = await studentsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
         studentSnapshot.forEach(async snap => {
             await studentsRef.child(snap.key).child('isEnrolled').setValue(true);
@@ -401,24 +443,25 @@ function displayMyEnrollment() {
             subjectsHtml += `
                 <div class="subject-item">
                     <i class="fas fa-book"></i>
-                    <div><strong>${subj.name}</strong><br><small>${subj.units} units | ₱${subj.price.toLocaleString()}</small></div>
+                    <div><strong>${subj.name}</strong><br><small>${subj.units} units | ₱${subj.price ? subj.price.toLocaleString() : 0}</small></div>
                 </div>
             `;
         });
     }
     subjectsHtml += '</div>';
     
-    const paymentStatus = (currentEnrollment.amountPaid || 0) >= (currentEnrollment.totalFee || 0) ? 'Fully Paid' : 
-                          (currentEnrollment.amountPaid > 0 ? 'Partial' : 'Unpaid');
+    const totalFee = currentEnrollment.totalFee || 0;
+    const amountPaid = currentEnrollment.amountPaid || 0;
+    const paymentStatus = amountPaid >= totalFee ? 'Fully Paid' : (amountPaid > 0 ? 'Partial' : 'Unpaid');
     
     container.innerHTML = `
         <div style="margin-bottom:20px; padding:15px; background:#f0f8ff; border-radius:10px;">
             <p><strong>Current Term:</strong> ${currentEnrollment.term || 'Trimester 1'} (${currentEnrollment.schoolYear || '2025-2026'})</p>
             ${subjectsHtml}
             <div style="margin-top:20px; padding:15px; background:#e8f4fd; border-radius:10px;">
-                <p><strong>Total Tuition:</strong> ₱${(currentEnrollment.totalFee || 0).toLocaleString()}</p>
-                <p><strong>Amount Paid:</strong> ₱${(currentEnrollment.amountPaid || 0).toLocaleString()}</p>
-                <p><strong>Balance:</strong> ₱${(currentEnrollment.balance || currentEnrollment.totalFee || 0).toLocaleString()}</p>
+                <p><strong>Total Tuition:</strong> ₱${totalFee.toLocaleString()}</p>
+                <p><strong>Amount Paid:</strong> ₱${amountPaid.toLocaleString()}</p>
+                <p><strong>Balance:</strong> ₱${(currentEnrollment.balance || totalFee).toLocaleString()}</p>
                 <p><strong>Payment Status:</strong> <span class="${paymentStatus === 'Fully Paid' ? 'grade-pass' : 'grade-fail'}">${paymentStatus}</span></p>
             </div>
         </div>
@@ -430,7 +473,13 @@ function displayMyEnrollment() {
 
 // ==================== LOAD STUDENT DASHBOARD ====================
 async function loadStudentData() {
-    if(!currentUser) return;
+    // CRITICAL FIX: Check if currentUser exists
+    if(!currentUser) {
+        console.log("No current user, skipping loadStudentData");
+        return;
+    }
+    
+    console.log("Loading student data for user:", currentUser.uid);
     showLoading('Loading your data...');
     try {
         const userSnap = await usersRef.child(currentUser.uid).once('value');
@@ -440,9 +489,11 @@ async function loadStudentData() {
         if(profileName) profileName.innerText = userName;
         if(welcomeName) welcomeName.innerText = userName;
         
+        // Get application
         const appSnap = await applicationsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
         const enrollmentSnap = await enrollmentsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
         
+        // Load enrollment if exists
         if(enrollmentSnap.exists()) {
             enrollmentSnap.forEach(snap => {
                 currentEnrollment = snap.val();
@@ -458,6 +509,8 @@ async function loadStudentData() {
                 currentApplication.id = snap.key;
             });
             
+            console.log("Application found with status:", currentApplication.status);
+            
             const status = currentApplication.status;
             const profileStatus = document.getElementById('profileStatus');
             const dashboardInfo = document.getElementById('dashboardInfo');
@@ -465,7 +518,14 @@ async function loadStudentData() {
             const myEnrollmentNavItem = document.getElementById('myEnrollmentNavItem');
             const paymentNavItem = document.getElementById('paymentNavItem');
             
-            if(status === 'approved') {
+            // FIX: Check both 'approved' and 'Approved' (case insensitive)
+            const isApproved = status && (status.toLowerCase() === 'approved');
+            const isPending = status && (status.toLowerCase() === 'pending');
+            const isEnrolled = (currentEnrollment && currentEnrollment.status === 'active') || 
+                              (currentApplication.isEnrolled === true);
+            
+            if(isApproved) {
+                console.log("User is APPROVED - showing subject selection");
                 if(profileStatus) {
                     profileStatus.innerText = 'APPROVED - Ready to Enroll';
                     profileStatus.className = 'profile-status status-approved';
@@ -487,7 +547,8 @@ async function loadStudentData() {
                 await loadAvailableSubjectsForStudent();
                 displayMyEnrollment();
             } 
-            else if(status === 'pending') {
+            else if(isPending) {
+                console.log("User is PENDING - waiting for admin approval");
                 if(profileStatus) {
                     profileStatus.innerText = 'PENDING REVIEW';
                     profileStatus.className = 'profile-status status-pending';
@@ -504,7 +565,8 @@ async function loadStudentData() {
                 if(myEnrollmentNavItem) myEnrollmentNavItem.style.display = 'none';
                 if(paymentNavItem) paymentNavItem.style.display = 'none';
             }
-            else if(status === 'enrolled' || (currentEnrollment && currentEnrollment.status === 'active')) {
+            else if(isEnrolled) {
+                console.log("User is ENROLLED");
                 if(profileStatus) {
                     profileStatus.innerText = 'ENROLLED';
                     profileStatus.className = 'profile-status status-approved';
@@ -523,6 +585,7 @@ async function loadStudentData() {
                 displayMyEnrollment();
             }
         } else {
+            console.log("No application found for user");
             const profileStatus = document.getElementById('profileStatus');
             const dashboardInfo = document.getElementById('dashboardInfo');
             const enrollmentNavItem = document.getElementById('enrollmentNavItem');
@@ -542,8 +605,11 @@ async function loadStudentData() {
         await loadGrades();
         await loadPaymentHistory();
         
-    } catch(e) { console.error(e); } 
-    finally { hideLoading(); }
+    } catch(e) { 
+        console.error("Error loading student data:", e);
+    } finally { 
+        hideLoading();
+    }
 }
 
 async function loadGrades() {
@@ -716,8 +782,16 @@ if(docUpload) {
     });
 }
 
+// ==================== INITIALIZE FORM OPTIONS ====================
+document.addEventListener('DOMContentLoaded', () => {
+    updateYearLevelOptions();
+    updateCourseOptions();
+});
+
 // ==================== AUTH STATE ====================
 auth.onAuthStateChanged(async (user) => {
+    console.log("Auth state changed:", user ? "User logged in: " + user.email : "No user");
+    
     if(user) {
         currentUser = user;
         const authSection = document.getElementById('authSection');
@@ -738,10 +812,4 @@ auth.onAuthStateChanged(async (user) => {
         if(studentPortal) studentPortal.style.display = 'none';
         if(logoutBtnElem) logoutBtnElem.style.display = 'none';
     }
-});
-
-// Initialize form options on page load
-document.addEventListener('DOMContentLoaded', () => {
-    updateYearLevelOptions();
-    updateCourseOptions();
 });

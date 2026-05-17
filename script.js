@@ -21,13 +21,16 @@ let subjectsRef = database.ref('subjects');
 let coursesRef = database.ref('courses');
 let gradesRef = database.ref('grades');
 let paymentsRef = database.ref('payments');
+let settingsRef = database.ref('settings');
 let currentUser = null;
 let currentApplication = null;
 let currentEnrollment = null;
 let availableSubjects = [];
 let selectedSubjects = [];
+let registrationOpen = true;
+let currentTerm = "Trimester 1";
 
-// Sign out on page load to prevent auto-login
+// Sign out on page load
 auth.signOut().then(() => console.log("Auto-login disabled")).catch(()=>{});
 
 // ==================== UI HELPER FUNCTIONS ====================
@@ -75,6 +78,120 @@ window.addEventListener('load', () => {
     }, 1500);
 });
 
+// ==================== LOAD SETTINGS FROM FIREBASE ====================
+async function loadSettings() {
+    try {
+        const settingsSnapshot = await settingsRef.once('value');
+        const settings = settingsSnapshot.val();
+        if (settings) {
+            if (settings.registrationOpen !== undefined) {
+                registrationOpen = settings.registrationOpen;
+            }
+            if (settings.currentTerm) {
+                currentTerm = settings.currentTerm;
+            }
+        }
+        updateRegistrationFormVisibility();
+        updateTermDisplay();
+        console.log("Settings loaded - Registration Open:", registrationOpen, "Current Term:", currentTerm);
+    } catch (error) {
+        console.error("Error loading settings:", error);
+    }
+}
+
+// Listen for real-time changes to registration status
+settingsRef.child('registrationOpen').on('value', (snapshot) => {
+    registrationOpen = snapshot.val() === true;
+    updateRegistrationFormVisibility();
+    console.log("Registration status updated:", registrationOpen ? "OPEN" : "CLOSED");
+});
+
+// Listen for real-time changes to current term
+settingsRef.child('currentTerm').on('value', (snapshot) => {
+    const term = snapshot.val();
+    if (term) {
+        currentTerm = term;
+        console.log("Current term updated by admin:", currentTerm);
+        updateTermDisplay();
+        // Reload subjects if user is approved
+        if (currentUser && currentApplication && currentApplication.status === 'approved') {
+            loadAvailableSubjectsForStudent();
+        }
+    }
+});
+
+function updateRegistrationFormVisibility() {
+    const registerCard = document.querySelector('.auth-card:last-child');
+    const registerMessageDiv = document.getElementById('registerMessage');
+    
+    if (!registrationOpen) {
+        if (registerCard) {
+            const registerForm = registerCard.querySelector('form');
+            const registerTitle = registerCard.querySelector('h2');
+            if (registerForm) registerForm.style.display = 'none';
+            if (registerTitle) registerTitle.innerHTML = '<i class="fas fa-ban"></i> Registration Closed';
+            
+            let closedMsg = registerCard.querySelector('.registration-closed-msg');
+            if (!closedMsg) {
+                closedMsg = document.createElement('div');
+                closedMsg.className = 'registration-closed-msg';
+                closedMsg.style.cssText = 'background: #f8d7da; color: #721c24; padding: 20px; border-radius: 10px; text-align: center; margin-top: 20px;';
+                closedMsg.innerHTML = `
+                    <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
+                    <strong>Application and Enrollment is currently not ongoing for New Student and Transferees.</strong><br><br>
+                    For concerns, please contact the <strong>Cousins University Support</strong> at:<br>
+                    📧 support@cousinsuniversity.edu.ph<br>
+                    📞 (02) 1234 5678
+                `;
+                registerCard.appendChild(closedMsg);
+            }
+        }
+        if (registerMessageDiv) {
+            registerMessageDiv.innerHTML = '<div class="message error">Registration is currently closed. Please contact support.</div>';
+        }
+    } else {
+        if (registerCard) {
+            const registerForm = registerCard.querySelector('form');
+            const registerTitle = registerCard.querySelector('h2');
+            if (registerForm) registerForm.style.display = 'block';
+            if (registerTitle) registerTitle.innerHTML = '<i class="fas fa-user-plus"></i> Register Account';
+            
+            const closedMsg = registerCard.querySelector('.registration-closed-msg');
+            if (closedMsg) closedMsg.remove();
+        }
+        if (registerMessageDiv) {
+            registerMessageDiv.innerHTML = '';
+        }
+    }
+}
+
+function updateTermDisplay() {
+    // Update term display in dashboard if student is approved
+    const dashboardInfo = document.getElementById('dashboardInfo');
+    const profileStatus = document.getElementById('profileStatus');
+    
+    if (currentApplication && currentApplication.status === 'approved') {
+        if (profileStatus) {
+            profileStatus.innerText = `APPROVED - Ready to Enroll (${currentTerm})`;
+        }
+        if (dashboardInfo && !dashboardInfo.innerHTML.includes('subjects')) {
+            const existingHtml = dashboardInfo.innerHTML;
+            if (!existingHtml.includes('Current Enrollment Term')) {
+                dashboardInfo.innerHTML = `
+                    <div class="enrollment-summary" style="background:#d4edda; padding:20px; border-radius:10px;">
+                        <p><strong>✅ Application Approved!</strong></p>
+                        <p>Education Level: ${currentApplication.educationLevel || 'N/A'}</p>
+                        <p>Year Level: ${currentApplication.yearLevel || 'N/A'}</p>
+                        <p>Course/Strand: ${currentApplication.strandCourse || 'N/A'}</p>
+                        <p><strong>📅 Current Enrollment Term: ${currentTerm}</strong> (Set by Admin)</p>
+                        <p style="margin-top:10px;">Please go to the <strong>My Enrollment tab</strong> to select your subjects for this term.</p>
+                    </div>
+                `;
+            }
+        }
+    }
+}
+
 // ==================== AUTH FORMS ====================
 const loginForm = document.getElementById('loginForm');
 if(loginForm) {
@@ -103,6 +220,12 @@ const registerForm = document.getElementById('registerForm');
 if(registerForm) {
     registerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
+        if (!registrationOpen) {
+            showToast('Registration is currently closed. Please contact support.', 'error');
+            return;
+        }
+        
         const name = document.getElementById('regName');
         const email = document.getElementById('regEmail');
         const pwd = document.getElementById('regPassword');
@@ -185,7 +308,6 @@ function updateCourseOptions() {
     });
 }
 
-// Attach event listeners for dynamic dropdowns
 const educationLevelSelect = document.getElementById('educationLevel');
 if(educationLevelSelect) {
     educationLevelSelect.addEventListener('change', () => {
@@ -201,6 +323,11 @@ if(enrollmentForm) {
         e.preventDefault();
         if(!currentUser) return showToast('Please login', 'error');
         if(currentApplication) return showToast('Application already submitted', 'error');
+        
+        if (!registrationOpen) {
+            showToast('Registration is currently closed. Please contact support.', 'error');
+            return;
+        }
         
         const fullName = document.getElementById('fullName');
         const dob = document.getElementById('dob');
@@ -256,7 +383,7 @@ if(enrollmentForm) {
     });
 }
 
-// ==================== SUBJECT SELECTION (After Approval) ====================
+// ==================== SUBJECT SELECTION (Filtered by Current Term from Admin) ====================
 async function loadAvailableSubjectsForStudent() {
     if(!currentApplication) return;
     if(currentApplication.status !== 'approved' && currentApplication.status !== 'Approved') {
@@ -274,7 +401,8 @@ async function loadAvailableSubjectsForStudent() {
         const subjectsList = [];
         subjectsSnapshot.forEach(snap => {
             const subject = snap.val();
-            if(subject && subject.level === level && subject.course === course && subject.year === year) {
+            // Filter by current term (set by admin)
+            if(subject && subject.level === level && subject.course === course && subject.year === year && subject.semester === currentTerm) {
                 subjectsList.push({
                     id: snap.key,
                     name: subject.name,
@@ -286,7 +414,6 @@ async function loadAvailableSubjectsForStudent() {
         });
         availableSubjects = subjectsList;
         
-        // Show subject selection card
         const subjectCard = document.getElementById('subjectSelectionCard');
         if(subjectCard) subjectCard.style.display = 'block';
         
@@ -302,40 +429,36 @@ function displaySubjectSelection() {
     const subjectsContainer = document.getElementById('subjectsSelectionContainer');
     if(!subjectsContainer) return;
     
+    const termHtml = `<div style="margin-bottom:15px; padding:10px; background:#28a745; color:white; border-radius:8px; text-align:center;">
+        <i class="fas fa-calendar-alt"></i> <strong>Current Enrollment Term: ${currentTerm}</strong><br>
+        <small>Set by Administrator</small>
+    </div>`;
+    
     if(availableSubjects.length === 0) {
-        subjectsContainer.innerHTML = '<p>No subjects available for your course/level yet. Please contact admin.</p>';
+        subjectsContainer.innerHTML = termHtml + '<p>No subjects available for your course/level this term. Please contact admin.</p>';
         return;
     }
     
-    // Group by semester
-    const semesterMap = new Map();
-    availableSubjects.forEach(subj => {
-        if(!semesterMap.has(subj.semester)) semesterMap.set(subj.semester, []);
-        semesterMap.get(subj.semester).push(subj);
-    });
+    let html = termHtml;
+    html += '<div class="subjects-grid">';
     
-    let html = '<div class="subjects-grid">';
-    semesterMap.forEach((subjects, semester) => {
-        html += `<div class="card" style="margin-bottom:20px;"><h4>${semester}</h4>`;
-        subjects.forEach(subj => {
-            const isSelected = selectedSubjects.some(s => s.id === subj.id);
-            html += `
-                <div class="subject-item">
-                    <input type="checkbox" id="subj_${subj.id}" ${isSelected ? 'checked' : ''} 
-                           data-id="${subj.id}" data-name="${subj.name}" data-units="${subj.units}" 
-                           data-price="${subj.price}" data-semester="${subj.semester}"
-                           onchange="toggleSubjectSelection(this)">
-                    <label for="subj_${subj.id}"><strong>${subj.name}</strong> (${subj.units} units) - ₱${subj.price.toLocaleString()}</label>
-                </div>
-            `;
-        });
-        html += `</div>`;
+    availableSubjects.forEach(subj => {
+        const isSelected = selectedSubjects.some(s => s.id === subj.id);
+        html += `
+            <div class="subject-item">
+                <input type="checkbox" id="subj_${subj.id}" ${isSelected ? 'checked' : ''} 
+                       data-id="${subj.id}" data-name="${subj.name}" data-units="${subj.units}" 
+                       data-price="${subj.price}" data-semester="${subj.semester}"
+                       onchange="toggleSubjectSelection(this)">
+                <label for="subj_${subj.id}"><strong>${subj.name}</strong> (${subj.units} units) - ₱${subj.price.toLocaleString()}</label>
+            </div>
+        `;
     });
     html += `</div>
              <div style="margin-top:20px; padding:15px; background:#e8f4fd; border-radius:10px;">
                  <p id="selectedTotalDisplay">Selected subjects total: ₱0</p>
                  <button id="saveEnrollmentSubjectsBtn" class="btn btn-success" style="margin-top:10px;">
-                     <i class="fas fa-save"></i> Enroll in Selected Subjects
+                     <i class="fas fa-save"></i> Enroll in Selected Subjects (${currentTerm})
                  </button>
              </div>`;
     subjectsContainer.innerHTML = html;
@@ -389,7 +512,7 @@ async function saveEnrollmentSubjects() {
             yearLevel: currentApplication.yearLevel,
             strandCourse: currentApplication.strandCourse,
             subjects: selectedSubjects,
-            term: 'Trimester 1',
+            term: currentTerm,
             schoolYear: '2025-2026',
             status: 'active',
             totalFee: totalFee,
@@ -407,14 +530,14 @@ async function saveEnrollmentSubjects() {
             await enrollmentsRef.push().set(enrollmentData);
         }
         
-        // Update student as enrolled
         const studentSnapshot = await studentsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
         studentSnapshot.forEach(async snap => {
             await studentsRef.child(snap.key).child('isEnrolled').setValue(true);
             await studentsRef.child(snap.key).child('enrolledSubjects').setValue(selectedSubjects);
+            await studentsRef.child(snap.key).child('currentTerm').setValue(currentTerm);
         });
         
-        showToast('Enrollment successful!', 'success');
+        showToast(`Enrollment for ${currentTerm} completed successfully!`, 'success');
         await loadStudentData();
         const myEnrollmentNav = document.querySelector('.nav-item[data-tab="myEnrollment"]');
         if(myEnrollmentNav) myEnrollmentNav.click();
@@ -456,7 +579,8 @@ function displayMyEnrollment() {
     
     container.innerHTML = `
         <div style="margin-bottom:20px; padding:15px; background:#f0f8ff; border-radius:10px;">
-            <p><strong>Current Term:</strong> ${currentEnrollment.term || 'Trimester 1'} (${currentEnrollment.schoolYear || '2025-2026'})</p>
+            <p><strong>Enrolled Term:</strong> ${currentEnrollment.term || currentTerm}</p>
+            <p><strong>School Year:</strong> ${currentEnrollment.schoolYear || '2025-2026'}</p>
             ${subjectsHtml}
             <div style="margin-top:20px; padding:15px; background:#e8f4fd; border-radius:10px;">
                 <p><strong>Total Tuition:</strong> ₱${totalFee.toLocaleString()}</p>
@@ -473,7 +597,6 @@ function displayMyEnrollment() {
 
 // ==================== LOAD STUDENT DASHBOARD ====================
 async function loadStudentData() {
-    // CRITICAL FIX: Check if currentUser exists
     if(!currentUser) {
         console.log("No current user, skipping loadStudentData");
         return;
@@ -489,11 +612,9 @@ async function loadStudentData() {
         if(profileName) profileName.innerText = userName;
         if(welcomeName) welcomeName.innerText = userName;
         
-        // Get application
         const appSnap = await applicationsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
         const enrollmentSnap = await enrollmentsRef.orderByChild('userId').equalTo(currentUser.uid).once('value');
         
-        // Load enrollment if exists
         if(enrollmentSnap.exists()) {
             enrollmentSnap.forEach(snap => {
                 currentEnrollment = snap.val();
@@ -518,16 +639,13 @@ async function loadStudentData() {
             const myEnrollmentNavItem = document.getElementById('myEnrollmentNavItem');
             const paymentNavItem = document.getElementById('paymentNavItem');
             
-            // FIX: Check both 'approved' and 'Approved' (case insensitive)
             const isApproved = status && (status.toLowerCase() === 'approved');
             const isPending = status && (status.toLowerCase() === 'pending');
-            const isEnrolled = (currentEnrollment && currentEnrollment.status === 'active') || 
-                              (currentApplication.isEnrolled === true);
             
             if(isApproved) {
-                console.log("User is APPROVED - showing subject selection");
+                console.log("User is APPROVED - showing subject selection for term:", currentTerm);
                 if(profileStatus) {
-                    profileStatus.innerText = 'APPROVED - Ready to Enroll';
+                    profileStatus.innerText = `APPROVED - Ready to Enroll`;
                     profileStatus.className = 'profile-status status-approved';
                 }
                 if(dashboardInfo) {
@@ -537,7 +655,8 @@ async function loadStudentData() {
                             <p>Education Level: ${currentApplication.educationLevel || 'N/A'}</p>
                             <p>Year Level: ${currentApplication.yearLevel || 'N/A'}</p>
                             <p>Course/Strand: ${currentApplication.strandCourse || 'N/A'}</p>
-                            <p style="margin-top:10px;">Please go to the <strong>My Enrollment tab</strong> to select your subjects.</p>
+                            <p><strong>📅 Current Enrollment Term: ${currentTerm}</strong></p>
+                            <p style="margin-top:10px;">Please go to the <strong>My Enrollment tab</strong> to select your subjects for this term.</p>
                         </div>
                     `;
                 }
@@ -564,25 +683,6 @@ async function loadStudentData() {
                 if(enrollmentNavItem) enrollmentNavItem.style.display = 'none';
                 if(myEnrollmentNavItem) myEnrollmentNavItem.style.display = 'none';
                 if(paymentNavItem) paymentNavItem.style.display = 'none';
-            }
-            else if(isEnrolled) {
-                console.log("User is ENROLLED");
-                if(profileStatus) {
-                    profileStatus.innerText = 'ENROLLED';
-                    profileStatus.className = 'profile-status status-approved';
-                }
-                if(dashboardInfo) {
-                    dashboardInfo.innerHTML = `
-                        <div class="enrollment-summary" style="background:#d4edda; padding:20px; border-radius:10px;">
-                            <p><strong>✅ You are officially ENROLLED!</strong></p>
-                            <p>Your subjects and payment details are in the My Enrollment tab.</p>
-                        </div>
-                    `;
-                }
-                if(enrollmentNavItem) enrollmentNavItem.style.display = 'none';
-                if(myEnrollmentNavItem) myEnrollmentNavItem.style.display = 'flex';
-                if(paymentNavItem) paymentNavItem.style.display = 'flex';
-                displayMyEnrollment();
             }
         } else {
             console.log("No application found for user");
@@ -782,10 +882,11 @@ if(docUpload) {
     });
 }
 
-// ==================== INITIALIZE FORM OPTIONS ====================
+// ==================== INITIALIZE ====================
 document.addEventListener('DOMContentLoaded', () => {
     updateYearLevelOptions();
     updateCourseOptions();
+    loadSettings();
 });
 
 // ==================== AUTH STATE ====================
